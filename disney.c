@@ -1,7 +1,6 @@
 #include "disney.h"
 
-int erro(char* mens, int ret){
+void error(char* mens){
     printf("%s\n", mens);
-    /*MUDAR PARA FECHAR NA CARA DO CARA SE QUISER*/
-    return ret;
+    return;
 }
