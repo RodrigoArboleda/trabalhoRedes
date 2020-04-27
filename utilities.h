@@ -1,5 +1,5 @@
-#ifndef DISNEY
-#define DISNEY
+#ifndef UTILITIES
+#define UTILITIES
 
 #include <stdio.h>
 #include <stdlib.h>
