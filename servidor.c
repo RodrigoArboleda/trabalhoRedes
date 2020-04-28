@@ -1,14 +1,14 @@
 #include "servidor.h"
 
-int main(int argc, char *argv[]){
+int connect_server(){
 
-    int cod_erro = 0;
+    int sock_task = -1;
+    int cod_error = 0;
 
-    printf("Aguardando cliente...\n");
-
-    int sock_task = socket(AF_INET, SOCK_STREAM, 0);
+    sock_task = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_task < 0){
-        erro(ERRO_SOCK, ERRO_SOCK_COD);
+        error(ERROR_SOCK);
+        exit(ERROR_SOCK_COD);
     }
 
     sockaddr_ip addrserver;
@@ -19,17 +19,19 @@ int main(int argc, char *argv[]){
 
     sockaddr_ip addrclient;
 
-    cod_erro = bind(sock_task, (struct sockaddr *)&addrserver, sizeof(sockaddr_ip));
+    cod_error = bind(sock_task, (struct sockaddr *)&addrserver, sizeof(sockaddr_ip));
 
-    if (cod_erro != 0)
+    if (cod_error != 0)
     {
-        erro(ERRO_BIND, ERRO_BIND_COD);
+        error(ERROR_BIND);
+        exit(ERROR_BIND_COD);
     }
     
-    cod_erro = listen(sock_task, MAX_CLIENT);
-    if (cod_erro != 0)
+    cod_error = listen(sock_task, MAX_CLIENT);
+    if (cod_error != 0)
     {
-        erro(ERRO, ERRO_COD);
+        error(ERROR);
+        exit(ERROR_COD);
     }
 
     int sock_client;
@@ -37,14 +39,33 @@ int main(int argc, char *argv[]){
 
     sock_client = accept(sock_task, (struct sockaddr *)&addrclient, &size_client_addr);
     if(sock_client < 0){
-        erro(ERRO_CONNECT, ERRO_CONNECT_COD);
+        error(ERROR_CONNECT);
+        exit(ERROR_CONNECT_COD);
     }
-    
-    char buffer[MENS_SIZE] = {0};
 
-    recv(sock_client, buffer, MENS_SIZE, 0);
+    shutdown(sock_task, 1);
 
-    printf("%s\n", buffer);
+    return sock_client;
+}
+
+int server(){
+
+    void *thread_ret;
+    int sock_client;
+
+    printf("Aguardando conexao...\n");
+
+    sock_client = connect_server();    
+
+    pthread_t threads[2];
+
+    printf("Conectado!\n");
+
+    pthread_create (&threads[0], NULL, send_menssage, (void*)(&sock_client));
+    pthread_create (&threads[1], NULL, receive_menssage, (void*)(&sock_client));
+
+    pthread_join (threads[0], &thread_ret);
+    pthread_join (threads[1], &thread_ret);
 
     return 0;
 }

@@ -1,17 +1,16 @@
 #include "cliente.h"
 
-int main(int argc, char *argv[]){
+int creat_connect(char* ip){
 
-    char ip[15] = {0};
+    int sock_server = -1;
 
-    int cod_erro = 0;
+    int cod_error = 0;
 
-    printf("Digite o IP do servidor:\n");
-    scanf("%s", ip);
 
-    int sock_server = socket(AF_INET, SOCK_STREAM, 0);
+    sock_server = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_server < 0){
-        erro(ERRO_SOCK, ERRO_SOCK_COD);
+        error(ERROR_SOCK);
+        exit(ERROR_SOCK_COD);
     }
 
     sockaddr_ip addrserver;
@@ -21,21 +20,37 @@ int main(int argc, char *argv[]){
     addrserver.sin_port = htons(PORT_SERVER);
 
 
-    cod_erro = connect(sock_server, (struct sockaddr *)&addrserver, sizeof(sockaddr_ip));
+    cod_error = connect(sock_server, (struct sockaddr *)&addrserver, sizeof(sockaddr_ip));
 
-    if (cod_erro != 0)
+    if (cod_error != 0)
     {
-        erro(ERRO_CONNECT, ERRO_CONNECT_COD);
+        error(ERROR_CONNECT);
+        exit(ERROR_CONNECT_COD);
     }
 
-    char buffer[MENS_SIZE] = {0};
-    buffer[0] = 'O';
-    buffer[1] = 'I';
-    buffer[2] = '!';
-    buffer[3] = '\0';
-    
-    send(sock_server, buffer, MENS_SIZE, 0);
+    return sock_server;
+}
 
+int client(){
+
+    void *thread_ret;
+    int sock_server;
+    char ip[15] = {0};
+
+    printf("Digite o IP do servidor:\n");
+    scanf("%s", ip);
+
+    sock_server = creat_connect(ip);
+
+    pthread_t threads[2];
+
+    printf("Conectado!\n");
+
+    pthread_create (&threads[0], NULL, send_menssage, (void*)(&sock_server));
+    pthread_create (&threads[1], NULL, receive_menssage, (void*)(&sock_server));
+
+    pthread_join (threads[0], &thread_ret);
+    pthread_join (threads[1], &thread_ret);
 
     return 0;
 }
