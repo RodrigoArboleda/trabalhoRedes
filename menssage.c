@@ -9,7 +9,7 @@ void *send_menssage(void *sock){
 
     while (1)
     {
-        scanf("%4096s", buffer);
+        scanf("\r\n%4096[^\n]", buffer);
         cod_error = send(sock_server, buffer, MENS_SIZE, 0);
         if (cod_error <= 0)
         {
