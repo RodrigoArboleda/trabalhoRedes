@@ -8,7 +8,7 @@ int connect_server(){
     sock_task = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_task < 0){
         error(ERROR_SOCK);
-        return ERROR_SOCK_COD;
+        exit(ERROR_SOCK_COD);
     }
 
     sockaddr_ip addrserver;
@@ -24,14 +24,14 @@ int connect_server(){
     if (cod_error != 0)
     {
         error(ERROR_BIND);
-        return ERROR_BIND_COD;
+        exit(ERROR_BIND_COD);
     }
     
     cod_error = listen(sock_task, MAX_CLIENT);
     if (cod_error != 0)
     {
         error(ERROR);
-        return ERROR_COD;
+        exit(ERROR_COD);
     }
 
     int sock_client;
@@ -40,7 +40,7 @@ int connect_server(){
     sock_client = accept(sock_task, (struct sockaddr *)&addrclient, &size_client_addr);
     if(sock_client < 0){
         error(ERROR_CONNECT);
-        return ERROR_CONNECT_COD;
+        exit(ERROR_CONNECT_COD);
     }
 
     shutdown(sock_task, 1);

@@ -14,7 +14,7 @@ void *send_menssage(void *sock){
         if (cod_error <= 0)
         {
             error(ERROR_CONNECT);
-            pthread_exit(NULL);
+            exit(ERROR_CONNECT_COD);
         }
     }
 
@@ -34,7 +34,7 @@ void *receive_menssage(void *sock){
         if (cod_error <= 0)
         {
             error(ERROR_CONNECT);
-            pthread_exit(NULL);
+            exit(ERROR_CONNECT_COD);
         }
         printf("receive:%s\n", buffer);
     }

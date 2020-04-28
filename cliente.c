@@ -10,7 +10,7 @@ int creat_connect(char* ip){
     sock_server = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_server < 0){
         error(ERROR_SOCK);
-        return ERROR_SOCK_COD;
+        exit(ERROR_SOCK_COD);
     }
 
     sockaddr_ip addrserver;
@@ -25,7 +25,7 @@ int creat_connect(char* ip){
     if (cod_error != 0)
     {
         error(ERROR_CONNECT);
-        return ERROR_CONNECT_COD;
+        exit(ERROR_CONNECT_COD);
     }
 
     return sock_server;
