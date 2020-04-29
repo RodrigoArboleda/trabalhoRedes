@@ -14,6 +14,7 @@
 #define ERROR_SOCK "FALHA AO CRIAR SOCKET."
 #define ERROR_CONNECT "ERRO AO SE CONECTAR AO SERVIDOR."
 #define ERROR_BIND "ERRO AO ASSOCIAR O ENDERECO"
+#define MSG_CONNECT "Conectado! Pode Começar a mandar mensagens!!\n"
 
 #define ERROR_COD -1
 #define ERROR_SOCK_COD 1
@@ -26,10 +27,31 @@
 
 typedef struct sockaddr_in sockaddr_ip;
 
+/*
+Esta função printa uma mensagem de erro passada como parametro
+@PARAMETROS
+    - char* mens - mensagem a ser imprimida na saida padrao
+@RETORNO
+    - void - sem retorno
+*/
 void error(char* mens);
 
+/*
+Esta função recebe um endereço IP no formato string e o convert para o seu formato em 32bits
+@PARAMETROS
+    - char *ip_string - endereço IP no formato string
+@RETORNO
+    - int - endereço IP no formato 32bits
+*/
 int string_to_byte_ip_adress(char *ip_string);
 
+/*
+Esta função inverte um valor 16bits de little endian para big endian e vice-versa
+@PARAMETROS
+    - uint16_t x - valor 16 bits de entrada.
+@RETORNO
+    - uint16_t - valor com a endian mudada.
+*/
 uint16_t invert_endian_16B(uint16_t x);
 
 #endif

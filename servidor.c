@@ -1,5 +1,11 @@
 #include "servidor.h"
 
+/*
+Esta funcção conecta o servidor a um client que tentar se conectar a ele,
+retorna 
+@RETORNO
+    int - socket conectado ao cliente
+*/
 int connect_server(){
 
     int sock_task = -1;
@@ -12,13 +18,13 @@ int connect_server(){
     }
 
     sockaddr_ip addrserver;
-
-    addrserver.sin_family = AF_INET;
+    /*montando a struct do endereço do socket*/
+    addrserver.sin_family = AF_INET;/*utilizando TCP*/
     addrserver.sin_addr.s_addr = INADDR_ANY;
     addrserver.sin_port = invert_endian_16B(PORT_SERVER);
 
     sockaddr_ip addrclient;
-
+    /*associando o socket ao seu respectivo endereço*/
     cod_error = bind(sock_task, (struct sockaddr *)&addrserver, sizeof(sockaddr_ip));
 
     if (cod_error != 0)
@@ -26,7 +32,7 @@ int connect_server(){
         error(ERROR_BIND);
         exit(ERROR_BIND_COD);
     }
-    
+    /*Quantos clientes podem se conectarem a este socket*/
     cod_error = listen(sock_task, MAX_CLIENT);
     if (cod_error != 0)
     {
@@ -36,7 +42,7 @@ int connect_server(){
 
     int sock_client;
     unsigned int size_client_addr;
-
+    /*Esperando conecção de um cliente*/
     sock_client = accept(sock_task, (struct sockaddr *)&addrclient, &size_client_addr);
     if(sock_client < 0){
         error(ERROR_CONNECT);
@@ -48,6 +54,10 @@ int connect_server(){
     return sock_client;
 }
 
+/*Esta função chama a connect_server para estabeler uma conexao com um cliente,
+e estabelece uma troca de mensagens com o cliente atraves de duas threads
+@RETORNO
+    int - sempre 0*/
 int server(){
 
     void *thread_ret;
@@ -59,8 +69,8 @@ int server(){
 
     pthread_t threads[2];
 
-    printf("Conectado!\n");
-
+    printf(MSG_CONNECT);
+    /*criando as threads, as funções send_menssage e receive_menssage estao definidas em menssage.c*/
     pthread_create (&threads[0], NULL, send_menssage, (void*)(&sock_client));
     pthread_create (&threads[1], NULL, receive_menssage, (void*)(&sock_client));
 

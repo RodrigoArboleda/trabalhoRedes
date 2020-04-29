@@ -1,5 +1,14 @@
 #include "cliente.h"
 
+/*
+Esta função conecta o client a o servidor do endereço IP passado como parametro,
+a porta eh a macro PORT_SERVER definida em servidor.h, retornando o socket 
+conectado a este servidor
+@PARAMETROS
+    char *ip - endereço IP do server no formato string(X.X.X.X)
+@RETORNO
+    int - socket conectado ao servidor
+*/
 int creat_connect(char* ip){
 
     int sock_server = -1;
@@ -14,8 +23,8 @@ int creat_connect(char* ip){
     }
 
     sockaddr_ip addrserver;
-
-    addrserver.sin_family = AF_INET;
+    /*montando a struct do endereço do socket*/
+    addrserver.sin_family = AF_INET; /*utilizando TCP*/
     addrserver.sin_addr.s_addr = string_to_byte_ip_adress(ip);
     addrserver.sin_port = invert_endian_16B(PORT_SERVER);
 
@@ -31,6 +40,11 @@ int creat_connect(char* ip){
     return sock_server;
 }
 
+/*Esta função chama a creat_connect para estabeler uma conexao,
+e estabelece uma troca de mensagens com o servidor atraves de duas threads
+@RETORNO
+    int - sempre 0
+*/
 int client(){
 
     void *thread_ret;
@@ -44,8 +58,8 @@ int client(){
 
     pthread_t threads[2];
 
-    printf("Conectado!\n");
-
+    printf(MSG_CONNECT);
+    /*criando as threads, as funções send_menssage e receive_menssage estao definidas em menssage.c*/
     pthread_create (&threads[0], NULL, send_menssage, (void*)(&sock_server));
     pthread_create (&threads[1], NULL, receive_menssage, (void*)(&sock_server));
 
