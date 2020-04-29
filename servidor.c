@@ -15,7 +15,7 @@ int connect_server(){
 
     addrserver.sin_family = AF_INET;
     addrserver.sin_addr.s_addr = INADDR_ANY;
-    addrserver.sin_port = htons(PORT_SERVER);
+    addrserver.sin_port = invert_endian_16B(PORT_SERVER);
 
     sockaddr_ip addrclient;
 

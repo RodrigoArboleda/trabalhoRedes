@@ -21,4 +21,4 @@ $(bin): $(obj)
 .PHONY: clean
 
 clean:
-	rm -f $(bin) $(obj)r
+	rm -f $(bin) $(obj)

@@ -6,10 +6,9 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
 #include <pthread.h>
 #include <signal.h>
-
+#include <string.h>
 
 #define ERROR "ERRO INTERNO."
 #define ERROR_SOCK "FALHA AO CRIAR SOCKET."
@@ -28,5 +27,9 @@
 typedef struct sockaddr_in sockaddr_ip;
 
 void error(char* mens);
+
+int string_to_byte_ip_adress(char *ip_string);
+
+uint16_t invert_endian_16B(uint16_t x);
 
 #endif

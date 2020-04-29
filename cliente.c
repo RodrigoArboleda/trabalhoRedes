@@ -16,8 +16,8 @@ int creat_connect(char* ip){
     sockaddr_ip addrserver;
 
     addrserver.sin_family = AF_INET;
-    addrserver.sin_addr.s_addr = inet_addr(ip);
-    addrserver.sin_port = htons(PORT_SERVER);
+    addrserver.sin_addr.s_addr = string_to_byte_ip_adress(ip);
+    addrserver.sin_port = invert_endian_16B(PORT_SERVER);
 
 
     cod_error = connect(sock_server, (struct sockaddr *)&addrserver, sizeof(sockaddr_ip));
