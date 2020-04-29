@@ -37,7 +37,7 @@ void *receive_menssage(void *sock){
             exit(ERROR_CONNECT_COD);
         }
         if(strlen(buffer) != 0){
-            printf("receive: %ld %s\n", strlen(buffer), buffer);
+            printf("receive: %s\n", buffer);
         }
     }
 
