@@ -9,7 +9,7 @@ void *send_menssage(void *sock){
 
     while (1)
     {
-        scanf("\r\n%4096[^\n]", buffer);
+        scanf(" %4096[^\n]", buffer);
         cod_error = send(sock_server, buffer, MENS_SIZE, 0);
         if (cod_error <= 0)
         {
@@ -36,7 +36,9 @@ void *receive_menssage(void *sock){
             error(ERROR_CONNECT);
             exit(ERROR_CONNECT_COD);
         }
-        printf("receive:%s\n", buffer);
+        if(strlen(buffer) != 0){
+            printf("receive: %ld %s\n", strlen(buffer), buffer);
+        }
     }
 
     pthread_exit(NULL);
