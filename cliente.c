@@ -6,6 +6,12 @@ seja encerrado de forma assincrona
 */
 int sock_open_server = -1;
 
+/*
+Esta funcção trata o caso de o programa receber um sinal, fechando o socket
+antes de encerrar 
+@RETORNO
+    void
+*/
 void stop_client(int sig){
     printf("encerrando conexão...\n");
     if (sock_open_server != -1){
@@ -64,29 +70,31 @@ int client(){
 
     void *thread_ret1;
     void *thread_ret2;
-    int sock_server;
     char ip[15] = {0};
+    /*É passado como parameto 0 o socket e 1 o status da outra thread*/
+    int parameter_thread[2];
+    parameter_thread[1] = 1;
 
     signal(SIGINT, stop_client);
 
     printf("Digite o IP do servidor:\n");
     scanf("%s", ip);
 
-    sock_server = creat_connect(ip);
+    parameter_thread[0] = creat_connect(ip);
 
-    sock_open_server = sock_server;
+    sock_open_server = parameter_thread[0];
 
     pthread_t threads[2];
 
     printf(MSG_CONNECT);
     /*criando as threads, as funções send_menssage e receive_menssage estao definidas em menssage.c*/
-    pthread_create (&threads[0], NULL, send_menssage, (void*)(&sock_server));
-    pthread_create (&threads[1], NULL, receive_menssage, (void*)(&sock_server));
+    pthread_create (&threads[0], NULL, send_menssage, (void*)(parameter_thread));
+    pthread_create (&threads[1], NULL, receive_menssage, (void*)(parameter_thread));
 
     pthread_join (threads[0], &thread_ret1);
     pthread_join (threads[1], &thread_ret2);
 
-    shutdown(sock_server, 1);
+    shutdown(parameter_thread[0], 1);
 
     sock_open_server = -1;
 

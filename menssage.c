@@ -1,10 +1,5 @@
 #include "menssage.h"
 
-/*
-A várivel a seguir mostra serve para saber se uma das threads, ou receber ou enviar
-foi encerrada, caso isso ocorra a outra encerra seu loop.
-*/
-int connect_status = 1;
 
 /*Esta função manda para o socket passado como parametros
 todas as mensagens escritas na entrada padrão
@@ -13,16 +8,17 @@ todas as mensagens escritas na entrada padrão
 @RETORNO
     - int - codigo de erro
 */
-void *send_menssage(void *sock){
+void *send_menssage(void *param){
 
-    int sock_server = *((int*)sock);
+    int sock_server = ((int*)param)[0];
+    int* connect_status = (int*)param+1;
 
     int ret_thread = 0;
 
     int cod_error;
     char buffer[MENS_SIZE+1] = {0};
 
-    while (connect_status)
+    while (*connect_status)
     {
         scanf(" %4096[^\n]", buffer);
         cod_error = send(sock_server, buffer, MENS_SIZE, 0);
@@ -30,12 +26,13 @@ void *send_menssage(void *sock){
         {
             error(ERROR_CONNECT);
             ret_thread = ERROR_CONNECT_COD;
-            connect_status = 0;
+            *connect_status = 0;
+            printf("Precione ENTER para encerrar.\n");
             pthread_exit(&ret_thread);
         }
     }
 
-    connect_status = 0;
+    *connect_status = 0;
     pthread_exit(&ret_thread);
 }
 
@@ -46,23 +43,25 @@ o que ouvir do socket
 @RETORNO
     - void - sem retorno
 */
-void *receive_menssage(void *sock){
+void *receive_menssage(void *param){
 
-    int sock_server = *((int*)sock);
+    int sock_server = ((int*)param)[0];
+    int* connect_status = (int*)param+1;
 
     int ret_thread = 0;
 
     int cod_error;
     char buffer[MENS_SIZE] = {0};
 
-    while (connect_status)
+    while (*connect_status)
     {
         cod_error = recv(sock_server, buffer, MENS_SIZE, 0);
         if (cod_error <= 0)
         {
             error(ERROR_CONNECT);
             ret_thread = ERROR_CONNECT_COD;
-            connect_status = 0;
+            *connect_status = 0;
+            printf("Digite qualquer coisa para encerrar.\n");
             pthread_exit(&ret_thread);
         }
         if(strlen(buffer) != 0){
@@ -70,6 +69,6 @@ void *receive_menssage(void *sock){
         }
     }
 
-    connect_status = 0;
+    *connect_status = 0;
     pthread_exit(&ret_thread);
 }
