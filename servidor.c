@@ -1,6 +1,21 @@
 #include "servidor.h"
 
 /*
+A váriavel globas a seguir armazena o socket que deve ser fechado caso o programa
+seja encerrado de forma assincrona
+*/
+int sock_open_client = -1;
+
+void stop_server(int sig){
+    printf("encerrando conexão...\n");
+    if (sock_open_client != -1){
+        shutdown(sock_open_client, 1);
+    }
+    sock_open_client = -1;
+    exit(1);
+}
+
+/*
 Esta funcção conecta o servidor a um client que tentar se conectar a ele,
 retorna 
 @RETORNO
@@ -63,9 +78,13 @@ int server(){
     void *thread_ret;
     int sock_client;
 
+    signal(SIGINT, stop_server);
+
     printf("Aguardando conexao...\n");
 
     sock_client = connect_server();    
+
+    sock_open_client= sock_client;
 
     pthread_t threads[2];
 
@@ -76,6 +95,10 @@ int server(){
 
     pthread_join (threads[0], &thread_ret);
     pthread_join (threads[1], &thread_ret);
+
+    shutdown(sock_client, 1);
+
+    sock_open_client = -1;
 
     return 0;
 }

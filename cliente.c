@@ -1,6 +1,21 @@
 #include "cliente.h"
 
 /*
+A váriavel globas a seguir armazena o socket que deve ser fechado caso o programa
+seja encerrado de forma assincrona
+*/
+int sock_open_server = -1;
+
+void stop_client(int sig){
+    printf("encerrando conexão...\n");
+    if (sock_open_server != -1){
+        shutdown(sock_open_server, 1);
+    }
+    sock_open_server = -1;
+    exit(1);
+}
+
+/*
 Esta função conecta o client a o servidor do endereço IP passado como parametro,
 a porta eh a macro PORT_SERVER definida em servidor.h, retornando o socket 
 conectado a este servidor
@@ -47,14 +62,19 @@ e estabelece uma troca de mensagens com o servidor atraves de duas threads
 */
 int client(){
 
-    void *thread_ret;
+    void *thread_ret1;
+    void *thread_ret2;
     int sock_server;
     char ip[15] = {0};
+
+    signal(SIGINT, stop_client);
 
     printf("Digite o IP do servidor:\n");
     scanf("%s", ip);
 
     sock_server = creat_connect(ip);
+
+    sock_open_server = sock_server;
 
     pthread_t threads[2];
 
@@ -63,8 +83,12 @@ int client(){
     pthread_create (&threads[0], NULL, send_menssage, (void*)(&sock_server));
     pthread_create (&threads[1], NULL, receive_menssage, (void*)(&sock_server));
 
-    pthread_join (threads[0], &thread_ret);
-    pthread_join (threads[1], &thread_ret);
+    pthread_join (threads[0], &thread_ret1);
+    pthread_join (threads[1], &thread_ret2);
+
+    shutdown(sock_server, 1);
+
+    sock_open_server = -1;
 
     return 0;
 }
