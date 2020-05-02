@@ -37,3 +37,8 @@ Caso o servidor não tenha aberto a porta, a porta 1515 deve ser aberta na rede 
 Esse erro pode ser causado caso o cliente encerre a conexão com o servidor. Neste caso é preciso estabelecer uma nova conexão.
 
 Caso ocorra algum outro erro, entre em contato com os desenvolvedores.
+
+## Versão dos programas utilizados
+compilador: gcc (Ubuntu 9.3.0-10ubuntu2) 9.3.0
+Sistema operacional: Ubuntu 20.04 LTS
+Kernel: 5.4.0-28-generic
