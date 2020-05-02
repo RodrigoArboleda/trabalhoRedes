@@ -1,5 +1,9 @@
 # Manual de utilização do IRC
 
+## Desenvolvedores
+Luan Ícaro Pinto Arcanjo 10799230  
+Rodrigo Cesar Arboleda 10416722
+
 ## Compilar código
 Para compilar o programa deve-se utilizar o comando “make”, este irá execultar a receita “all”.
 ```
