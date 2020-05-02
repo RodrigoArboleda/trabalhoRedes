@@ -61,7 +61,7 @@ void *receive_menssage(void *param){
             error(ERROR_CONNECT);
             ret_thread = ERROR_CONNECT_COD;
             *connect_status = 0;
-            printf("Digite qualquer coisa para encerrar.\n");
+            printf(MSG_END_CONNECT);
             pthread_exit(&ret_thread);
         }
         if(strlen(buffer) != 0){

@@ -15,6 +15,7 @@
 #define ERROR_CONNECT "ERRO AO SE CONECTAR AO SERVIDOR."
 #define ERROR_BIND "ERRO AO ASSOCIAR O ENDERECO"
 #define MSG_CONNECT "Conectado! Pode Começar a mandar mensagens!!\n"
+#define MSG_END_CONNECT "Digite algo para encerrar o programa.\n"
 
 #define ERROR_COD -1
 #define ERROR_SOCK_COD 1
