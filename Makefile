@@ -18,7 +18,10 @@ $(bin): $(obj)
 %.o: %.c
 	$(CC) $(CPP_FLAGS) $(C_FLAGS) -c $<
 
+run: $(bin)
+	./$(bin)
+
 .PHONY: clean
 
 clean:
-	rm -f $(bin) $(obj)
+	rm -f $(obj)
