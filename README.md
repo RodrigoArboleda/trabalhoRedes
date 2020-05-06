@@ -28,8 +28,10 @@ $ ./irc
 
 ## Utilizando o programa
 Ao inicia o programa existem 2 opções, 1 para se conectar a um servidor e 2 para abrir um servidor.
-### 1: Está opção te levará a para digitar um IP. Digite um IP de um outro computador que está aguardando sua conexão para estabelecer uma.
-### 2: Está opção te colocará em modo de espera, esperando um outro computador para se conectar. Para isso, passe o IP de seu computador para que o outro usuário possa se conectar.
+### 1:
+Está opção te levará a para digitar um IP. Digite um IP de um outro computador que está aguardando sua conexão para estabelecer uma.
+### 2:
+Está opção te colocará em modo de espera, esperando um outro computador para se conectar. Para isso, passe o IP de seu computador para que o outro usuário possa se conectar.
 
 ## Encerrando o programa
 Para encerrar o programa basta pressionar Ctrl+C que ele irá fechar os sockets abertos e encerrar o programa.  
