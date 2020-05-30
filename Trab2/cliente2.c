@@ -1,12 +1,31 @@
 #include "utilities.h"
-#include <semaphore.h>
-#include <unistd.h>
-#include <time.h>
 
+/*
+Semaforos das threads
+
+Modificar o ack-signal
+*/
 sem_t sem_ack;
+
+/*
+Enviar uma messagem para o servidor
+*/
 sem_t sem_send;
+
+/*
+Modificar o ping_signal
+*/
 sem_t sem_ping;
+
+/*
+Modificar o numero de fails de tentativa de se conectar ao
+servidor
+*/
 sem_t sem_connect_fail;
+
+/*
+Modificar o connect_signal
+*/
 sem_t sem_connect;
 
 /*
@@ -42,8 +61,6 @@ Armazena se o programa esta tentando se conectar a um servidor
 1 - tentnado conectar
 */
 int connect_signal = 0;
-
-
 
 /*
 Guarda as threads do sistema, a thread[0] é a de envio
@@ -81,7 +98,7 @@ void *creat_connect(void* ip_par){
     sock_server = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_server < 0){
         error(ERROR_SOCK);
-        
+        /*ao nao conseguir criar o socket, o programa e encerrado*/
         sem_wait(&sem_connect);
         connect_signal = 0;
         sem_post(&sem_connect);
@@ -100,7 +117,7 @@ void *creat_connect(void* ip_par){
     if (cod_error != 0)
     {
         ret_thread = ERROR_CONNECT_COD;
-        
+        /*ao nao conseguir conectar ao servidor, o programa retorna ao inicio, mas nao encerra*/
         sem_wait(&sem_connect);
         connect_signal = 0;
         sem_post(&sem_connect);
@@ -117,6 +134,14 @@ void *creat_connect(void* ip_par){
     pthread_exit(&ret_thread);
 }
 
+/*
+Esta função espera um ACK do servidor. O tempo máximo de espera é de
+500000000 nanosegundos
+OBS: ack deve ser setado para -1
+@RETORNO
+    - int - 1 - caso tenha o receba o ACK
+            0 - caso ACK seja recebido
+*/
 int wait_ack(){
 
     struct timespec time_sleep;
@@ -143,6 +168,16 @@ int wait_ack(){
 
 }
 
+/*
+Esta função espera o cliente se conectar, caso o tempo maximo seja atingindo
+a thread para se conectar é cancelada e o programa apresenta um erro de conexao.
+OBS: O connect_signal deve ser setado para 1
+@PARAMETROS
+    - pthread_t - thread a se cancelada caso tenha demore muito para se conectar
+@RETORNO
+    - int - 0 - caso tenha conectado
+          - 1 - caso nao tenha conectado e a thread tenha sido cancelada
+*/
 int wait_connect(pthread_t connect_thread){
 
     struct timespec time_sleep;
@@ -175,6 +210,14 @@ int wait_connect(pthread_t connect_thread){
 
 }
 
+/*
+Agurda o retorno do ping do servidor, caso o tempo maximo de espera(1250000000 nanosegundos) seja
+atingido a funcao retorna, ou caso seja recebido algum retorno (PONG)
+OBS: o ping_signal deve ser setado para -1
+@RETORNO
+    - int - 0 - caso o ping seja recebido corretamente
+            1 - caso nao seja recebido o ping
+*/
 int wait_ping(){
 
     struct timespec time_sleep;
@@ -202,6 +245,11 @@ int wait_ping(){
 
 }
 
+/*
+Desconecta o cliente e encerra as threads de recive e send do progama.
+OBS:Caso seja a thread recive ou send que tenha chamado a funcao ela nao
+ira matar esta thread e ela deve encerrar apos o retorno da funcao
+*/
 void disconect(){
     printf("Encerrando conexão com o servidor...\n");
     
@@ -236,6 +284,15 @@ void disconect(){
     return;
 }
 
+/*
+Esta funcao envia a mensagem para o servidor conectado
+a funcao espera o retorno ACK do servidor, caso nao receba
+tenta eviar novamente 5 vezes, apos isso ela informa o erro
+e registra uma falha ao enviar a mensagem
+OBS: Esta funcao deve ser chamada em uma thread
+@PARAMETROS
+    - void* - endereco do buffer com a mensagem
+*/
 void *send_mensage(void* buffer_par){
 
     char* buffer = (char*)buffer_par;
@@ -263,6 +320,7 @@ void *send_mensage(void* buffer_par){
     ack_signal = -1;
     sem_post(&sem_ack);
 
+    /*loop que faz 5 tentativas para enviar a mensagem*/
     for (int i = 0; i < 5; i++)
     {
         int ack_ret;
@@ -274,6 +332,7 @@ void *send_mensage(void* buffer_par){
             break;
         }
 
+        /*reenvia caso nao tenha recebido retorno*/
         else
         {   
             sem_wait(&sem_send);
@@ -289,6 +348,7 @@ void *send_mensage(void* buffer_par){
         
     }
 
+    /*verifica se a mensagem foi enviada e encerra a funcao*/
     sem_wait(&sem_ack);
 
     if (ack_signal == -1)
@@ -308,17 +368,23 @@ void *send_mensage(void* buffer_par){
     pthread_exit(&ret_thread);
 }
 
+/*
+Esta funcao fica sempre rodando enquando a conexao estiver ativa. Ela
+recebe todos os dados o qual o servidor envia para o cliente
+OBS: Deve ser chama em uma thread
+*/
 void *receive_menssage(){
 
     int ret_thread = 0;
 
     int cod_error;
     
-
+    /*loop de leitura*/
     while (sock_server >= 0)
     {
         char buffer[MENS_SIZE] = {0};
 
+        /*le a mensagem*/
         cod_error = recv(sock_server, buffer, MENS_SIZE, 0);
         if (cod_error <= 0)
         {
@@ -327,7 +393,7 @@ void *receive_menssage(){
             disconect();
             pthread_exit(&ret_thread);
         }
-
+        /*verifica se e um ACK do servidor*/
         if (strcmp(buffer, "ACK") == 0)
         {
             sem_wait(&sem_ack);
@@ -337,7 +403,7 @@ void *receive_menssage(){
             }
             sem_post(&sem_ack);
         }
-
+        /*verifica se é uma resposta do ping*/
         else if (strcmp(buffer, "PONG") == 0)
         {
             sem_wait(&sem_ping);
@@ -348,16 +414,18 @@ void *receive_menssage(){
             }
             sem_post(&sem_ping);
         }
-        
+        /*caso seja um mensagem mostra ao usuario*/
         else if(strlen(buffer) != 0)
         {
             
             sem_wait(&sem_send);
+            /*retorna o ACK para o servidor*/
             char ack[6];
             strcpy(ack,"<ACK>");
             ack[5] = '\0';
             cod_error = send(sock_server, ack, 6, 0);
             sem_post(&sem_send);
+            /*caso tenha algum erro ao enviar, encerra a conexao com servidor*/
             if (cod_error <= 0)
             {
                 error(ERROR_CONNECT);
@@ -375,9 +443,21 @@ void *receive_menssage(){
     pthread_exit(&ret_thread);
 }
 
+/*
+Esta funcao trata caso um comando seja inserido pelo usuario no terminal do irc
+@PARAMETROS
+    - char* - o buffer com o commando dado pelo usuario
+@RETORNO
+    - int - 0 - encerro sem erros
+            1 - o programa deve ser encerrado
+            2 - tentativa de se conectar sendo que ja existe uma conexao ativa
+            3 - comando desconhecido
+            4 - sem conexao estabelecida
+            5 - sem retorno do servidor
+*/
 int command(char* buffer){
 
-    
+    /*cada if verifica qual comando deve ser execultado*/
     if (strcmp(buffer, "/connect") == 0)
     {
         if (sock_server >= 0)
@@ -402,9 +482,11 @@ int command(char* buffer){
             connect_signal = 1;
             sem_post(&sem_connect);
 
+            /*cria a thread que ira realizar a conexao com o servidor*/
             pthread_create(&thread_connect, NULL, creat_connect, (void*)(buffer));
             wait_connect(thread_connect);            
 
+            /*verifica se foi conectado*/
             if(sock_server > 0){
                 pthread_create(&thread[1], NULL, receive_menssage, NULL);
                 printf("Connectado!\n");
@@ -422,6 +504,7 @@ int command(char* buffer){
         
     }
     
+    /*fecha as conexaos, mata as threads e retorna o pedido para encerar o programa*/
     else if (strcmp(buffer, "/quit") == 0)
     {
         printf("Encerrando cliente...\n");
@@ -434,6 +517,7 @@ int command(char* buffer){
         return 1;
     }
 
+    /*envia o ping e agurda o retorno do sevidor e calcula o tempo de resposta*/
     else if (strcmp(buffer, "/ping") == 0)
     {
         if (sock_server < 0)
@@ -506,18 +590,22 @@ int main(int argc, char *argv[]){
     void *thread_ret;
     int ret_command;
 
+    /*inicia os semaforos do programa*/
     sem_init(&sem_ack,0,1);
     sem_init(&sem_send,0,1);
     sem_init(&sem_ping,0,1);
     sem_init(&sem_connect_fail,0,1);
     sem_init(&sem_connect,0,1);
 
+    /*modifica o tratamento do sinal SIGING*/
     signal(SIGINT, stop_client);
 
     printf("Bem-vindo ao IRC!!!\n");
 
+    /*loop principal do programa*/
     while (1)
     {
+        /*verifica o numero de falhas que o programa teve ao se conectar com o servidor*/
         if (num_connect_fail >= 3)
         {
             printf("O servidor não respondeu a 3 mensagens.\n");
@@ -527,8 +615,10 @@ int main(int argc, char *argv[]){
             sem_post(&sem_connect_fail);
         }
         
+        /*le entrada do usuario*/
         scanf(" %4096[^\n]", buffer);
 
+        /*verifica se e um comando*/
         if (buffer[0] == '/')
         {
             ret_command = command(buffer);
@@ -540,12 +630,14 @@ int main(int argc, char *argv[]){
             
         }
         
+        /*verifica se existe uma conexao*/
         else if (sock_server != -1)
         {
             pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
             pthread_join(thread[0],  &thread_ret);
         }
 
+        /*nao esta conectado e nao e um comando*/
         else
         {
             printf("Nao esta conectado a nenhum servidor.\n");

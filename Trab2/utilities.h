@@ -10,6 +10,8 @@
 #include <signal.h>
 #include <string.h>
 #include <semaphore.h>
+#include <unistd.h>
+#include <time.h>
 
 
 #define ERROR "ERRO INTERNO."
