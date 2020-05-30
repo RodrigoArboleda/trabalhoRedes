@@ -1,11 +1,11 @@
 lib = libpthread.a
 obj_client = cliente2.o utilities.o
-obj_server = servidor2.o utilities.o
+obj_server = servidor2.o list.o utilities.o
 bin_client = irc_client
 bin_server = irc_server
 
 CC = gcc
-CPP_FLAGS = -Wall -ansi
+CPP_FLAGS = -Wall
 C_FLAGS =
 LD_FLAGS =
 
