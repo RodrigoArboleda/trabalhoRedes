@@ -154,7 +154,8 @@ int wait_ack(){
         return 1;
     }
 
-    for (int i = 0; i < 10; i++)
+    int i;
+    for (i = 0; i < 10; i++)
     {
         if (ack_signal == 1)
         {
@@ -190,7 +191,8 @@ int wait_connect(pthread_t connect_thread){
         return 0;
     }
 
-    for (int i = 0; i < 20; i++)
+    int i;
+    for (i = 0; i < 20; i++)
     {
         if (connect_signal == 0)
         {
@@ -230,8 +232,8 @@ int wait_ping(){
         return 1;
     }
     
-
-    for (int i = 0; i < 50; i++)
+    int i;
+    for (i = 0; i < 50; i++)
     {
         if (ping_signal == 1)
         {
@@ -321,7 +323,8 @@ void *send_mensage(void* buffer_par){
     sem_post(&sem_ack);
 
     /*loop que faz 5 tentativas para enviar a mensagem*/
-    for (int i = 0; i < 5; i++)
+    int i;
+    for (i = 0; i < 5; i++)
     {
         int ack_ret;
 
@@ -476,7 +479,6 @@ int command(char* buffer){
             printf("Se conectando a: %s...\n", ip);
 
             pthread_t thread_connect;
-            void *thread_ret;
 
             sem_wait(&sem_connect);
             connect_signal = 1;
@@ -530,7 +532,6 @@ int command(char* buffer){
         {
 
             clock_t clocks[2];
-            void *thread_ret;
 
             strcpy(buffer, "PING");
             
