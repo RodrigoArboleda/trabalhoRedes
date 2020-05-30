@@ -52,6 +52,16 @@ e a thread[1] a de recebimento de mensagem
 pthread_t thread[2];
 
 /*
+Esta funcção trata o caso de o programa receber um sinal
+@RETORNO
+    void
+*/
+void stop_client(int sig){
+    printf("\nPara encerrar o cliente digite: /quit\n");
+    return;
+}
+
+/*
 Esta função conecta o client a o servidor do endereço IP passado como parametro,
 a porta eh a macro PORT_SERVER definida em servidor.h, salvando o socket 
 conectado ao servidor
@@ -501,6 +511,8 @@ int main(int argc, char *argv[]){
     sem_init(&sem_ping,0,1);
     sem_init(&sem_connect_fail,0,1);
     sem_init(&sem_connect,0,1);
+
+    signal(SIGINT, stop_client);
 
     printf("Bem-vindo ao IRC!!!\n");
 
