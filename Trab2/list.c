@@ -1,19 +1,5 @@
 #include "list.h"
 
-struct list_
-{
-    int size;
-    LIST_ELEMENT* listfirst;
-};
-
-
-struct list_element_
-{
-    LIST_ELEMENT* next;
-    CLIENT* client_ele;
-};
-
-
 LIST* creat_list(){
     
     LIST* list_temp = NULL;
@@ -118,7 +104,7 @@ CLIENT* remove_list(LIST* list_d, char* nickname){
     {
         next_element = now_element->next;
         
-        if(strcmp(now_element->client_ele->nickname, nickname)){
+        if(strcmp(now_element->client_ele->nickname, nickname) == 0){
             client_ret = now_element->client_ele;
             free(now_element);
 

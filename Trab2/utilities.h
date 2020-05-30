@@ -9,6 +9,8 @@
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
+#include <semaphore.h>
+
 
 #define ERROR "ERRO INTERNO."
 #define ERROR_SOCK "FALHA AO CRIAR SOCKET."
@@ -22,9 +24,11 @@
 #define ERROR_CONNECT_COD 2
 #define ERROR_BIND_COD 3
 
-#define PORT_SERVER 1515
+#define PORT_SERVER 1595
 #define MAX_CLIENT 1
 #define MENS_SIZE 4096
+
+void* ff(void *param);
 
 typedef struct sockaddr_in sockaddr_ip;
 
@@ -54,5 +58,32 @@ Esta função inverte um valor 16bits de little endian para big endian e vice-ve
     - uint16_t - valor com a endian mudada.
 */
 uint16_t invert_endian_16B(uint16_t x);
+
+
+typedef struct client{
+
+    int socket; //-1
+    struct sockaddr_in addr;
+    unsigned int size_addr;
+    char nickname[50];
+
+    //utilizado para thread com timeout
+    pthread_mutex_t mutex;// = PTHREAD_MUTEX_INITIALIZER;
+    pthread_cond_t cond;// = PTHREAD_COND_INITIALIZER;
+    
+    sem_t sem_connect_status;
+    int connect_status; //=1;
+
+    sem_t sem_read;
+
+    pthread_t thread_listen;
+
+    sem_t sem_sending_msg;
+    //contador de quantas mensagens estao sendo enviadas a este cliente
+    int cont_sending_msg; 
+
+} CLIENT;
+
+int exec_n_segundos(int n, void *(*funcao) (void *),void *param, pthread_mutex_t *mutex_end, pthread_cond_t *cond_end);
 
 #endif

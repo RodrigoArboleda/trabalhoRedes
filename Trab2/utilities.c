@@ -48,3 +48,41 @@ uint16_t invert_endian_16B(uint16_t x){
     new_x = ((x<<8) & 0xff00) | ((x>>8) & 0x00ff);
     return new_x;
 }
+
+void* ff(void *param){
+    printf("aqui meu lindo4\n");
+    while(1){
+        int n;
+        n = 0;
+    }
+
+    return 0;
+}
+
+int exec_n_segundos(int n, void *(*funcao) (void *),void *param, pthread_mutex_t *mutex_end, pthread_cond_t *cond_end){
+    struct timespec abs_time;
+    pthread_t tid;
+
+    pthread_mutex_lock(mutex_end);
+
+    /* pthread cond_timedwait expects an absolute time to wait until */
+    clock_gettime(CLOCK_REALTIME, &abs_time);
+    abs_time.tv_sec += n;
+
+    pthread_create(&tid, NULL, funcao, param);
+
+    /* pthread_cond_timedwait can return spuriously: this should
+    * be in a loop for production code
+    */
+    int err = 0;
+    err = pthread_cond_timedwait(cond_end, mutex_end, &abs_time);
+
+    int k;
+    int *a = &k;
+
+    pthread_mutex_unlock(mutex_end);
+    pthread_cancel(tid);
+    pthread_join(tid,(void**)&a);
+
+    return err;
+}

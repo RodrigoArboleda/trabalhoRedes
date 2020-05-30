@@ -1,10 +1,22 @@
-#ifndef LIST
-#define LIST
+#ifndef LISTA
+#define LISTA
 
 #include "utilities.h"
 
-typedef struct list_ LIST;
 typedef struct list_element_ LIST_ELEMENT;
+
+struct list_element_
+{
+    LIST_ELEMENT* next;
+    CLIENT* client_ele;
+    
+};
+
+typedef struct l{
+    int size;
+    LIST_ELEMENT* listfirst;
+}LIST;
+
 
 LIST* creat_list();
 
