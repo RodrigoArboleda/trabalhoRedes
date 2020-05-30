@@ -7,6 +7,7 @@ sem_t sem_ack;
 sem_t sem_send;
 sem_t sem_ping;
 sem_t sem_connect_fail;
+sem_t sem_connect;
 
 /*
 Armazena o sock de comunucacao do cliente, caso estaja -1
@@ -36,6 +37,15 @@ Armazena o numero de tentativas falhas de enviar mensagem
 int num_connect_fail = 0;
 
 /*
+Armazena se o programa esta tentando se conectar a um servidor
+0 - não tentando;
+1 - tentnado conectar
+*/
+int connect_signal = 0;
+
+
+
+/*
 Guarda as threads do sistema, a thread[0] é a de envio
 e a thread[1] a de recebimento de mensagem
 */
@@ -43,24 +53,30 @@ pthread_t thread[2];
 
 /*
 Esta função conecta o client a o servidor do endereço IP passado como parametro,
-a porta eh a macro PORT_SERVER definida em servidor.h, retornando o socket 
-conectado a este servidor
+a porta eh a macro PORT_SERVER definida em servidor.h, salvando o socket 
+conectado ao servidor
 @PARAMETROS
     char *ip - endereço IP do server no formato string(X.X.X.X)
-@RETORNO
-    int - socket conectado ao servidor
 */
-int creat_connect(char* ip){
+void *creat_connect(void* ip_par){
+
+    char* ip = (char*)ip_par;
 
     sock_server = -1;
 
     int cod_error = 0;
 
+    int ret_thread = 0;
 
     sock_server = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_server < 0){
         error(ERROR_SOCK);
-        exit(ERROR_SOCK_COD);
+        
+        sem_wait(&sem_connect);
+        connect_signal = 0;
+        sem_post(&sem_connect);
+        
+        exit(ERROR_CONNECT_COD);
     }
 
     sockaddr_ip addrserver;
@@ -73,11 +89,22 @@ int creat_connect(char* ip){
     cod_error = connect(sock_server, (struct sockaddr *)&addrserver, sizeof(sockaddr_ip));
     if (cod_error != 0)
     {
-        error(ERROR_CONNECT);
-        exit(ERROR_CONNECT_COD);
+        ret_thread = ERROR_CONNECT_COD;
+        
+        sem_wait(&sem_connect);
+        connect_signal = 0;
+        sem_post(&sem_connect);
+
+        sock_server = -1;
+
+        pthread_exit(&ret_thread);
     }
 
-    return sock_server;
+    sem_wait(&sem_connect);
+    connect_signal = 0;
+    sem_post(&sem_connect);
+
+    pthread_exit(&ret_thread);
 }
 
 int wait_ack(){
@@ -101,6 +128,38 @@ int wait_ack(){
 
         nanosleep(&time_sleep, NULL);
     }
+    
+    return 1;
+
+}
+
+int wait_connect(pthread_t connect_thread){
+
+    struct timespec time_sleep;
+
+    time_sleep.tv_nsec = 100000000;
+    time_sleep.tv_sec = 0;
+
+    if (connect_signal == 0)
+    {
+        return 0;
+    }
+
+    for (int i = 0; i < 20; i++)
+    {
+        if (connect_signal == 0)
+        {
+            return 0;
+        }
+
+        nanosleep(&time_sleep, NULL);
+    }
+
+    pthread_cancel(connect_thread);
+    
+    sem_wait(&sem_connect);
+    connect_signal = 0;
+    sem_post(&sem_connect);
     
     return 1;
 
@@ -144,8 +203,16 @@ void disconect(){
     ping_signal = 0;
     sem_post(&sem_ping);
 
-    pthread_cancel(thread[0]);
-    pthread_cancel(thread[1]);
+    if (thread[0] != pthread_self())
+    {
+        pthread_cancel(thread[0]);
+    }
+    
+    
+    if (thread[1] != pthread_self())
+    {
+        pthread_cancel(thread[1]);
+    }
 
     char quit[6];
     strcpy(quit,"/quit");
@@ -245,7 +312,6 @@ void *receive_menssage(){
         cod_error = recv(sock_server, buffer, MENS_SIZE, 0);
         if (cod_error <= 0)
         {
-            printf("teste\n");
             error(ERROR_CONNECT);
             ret_thread = ERROR_CONNECT_COD;
             disconect();
@@ -318,9 +384,28 @@ int command(char* buffer){
             scanf("%15s", ip);
         
             printf("Se conectando a: %s...\n", ip);
-            creat_connect(ip);
-            pthread_create(&thread[1], NULL, receive_menssage, NULL);
-            printf("Connectado!\n");
+
+            pthread_t thread_connect;
+            void *thread_ret;
+
+            sem_wait(&sem_connect);
+            connect_signal = 1;
+            sem_post(&sem_connect);
+
+            pthread_create(&thread_connect, NULL, creat_connect, (void*)(buffer));
+            wait_connect(thread_connect);            
+
+            if(sock_server > 0){
+                pthread_create(&thread[1], NULL, receive_menssage, NULL);
+                printf("Connectado!\n");
+            }   
+
+            else
+            {
+                printf("Falha ao conectar ao ip %s\n", ip);
+            }
+                     
+            
             return 0;
         }
         
@@ -361,8 +446,9 @@ int command(char* buffer){
             
             clocks[0] = clock();
 
-            pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
-            pthread_join(thread[0],  &thread_ret);
+            sem_wait(&sem_send);
+            send(sock_server, buffer, MENS_SIZE, 0);
+            sem_post(&sem_send);
 
             int ping_ret;
 
@@ -376,7 +462,7 @@ int command(char* buffer){
 
             if (ping_ret == 0)
             {
-                printf("Tempode de resposta: %.0lfms\n", ((clocks[1] - clocks[0])/(double)CLOCKS_PER_SEC)*10000000.0);
+                printf("Tempode de resposta: %.0lfms\n", ((clocks[1] - clocks[0])/(double)CLOCKS_PER_SEC)*1000.0);
                 return 0;
             }
 
@@ -414,6 +500,7 @@ int main(int argc, char *argv[]){
     sem_init(&sem_send,0,1);
     sem_init(&sem_ping,0,1);
     sem_init(&sem_connect_fail,0,1);
+    sem_init(&sem_connect,0,1);
 
     printf("Bem-vindo ao IRC!!!\n");
 
