@@ -617,7 +617,21 @@ int main(int argc, char *argv[]){
         }
         
         /*le entrada do usuario*/
-        scanf(" %4096[^\n]", buffer);
+        int input_size;
+        input_size = scanf(" %4096[^\n]", buffer);
+
+        if (input_size <= 0)
+        {
+            printf("Encerrando cliente...\n");
+
+            if (sock_server >= 0)
+            {
+                disconect();
+            }
+            
+            break;
+        }
+        
 
         /*verifica se e um comando*/
         if (buffer[0] == '/')
