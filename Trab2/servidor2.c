@@ -55,7 +55,6 @@ int prepare_server_socket(){
     addrserver.sin_addr.s_addr = INADDR_ANY;
     addrserver.sin_port = invert_endian_16B(PORT_SERVER);
 
-    struct sockaddr_in addrclient;
     /*associando o socket ao seu respectivo endereço*/
     cod_error = bind(sock_task, (struct sockaddr *)&addrserver, sizeof(sockaddr_ip));
 
@@ -122,6 +121,8 @@ void *disconnect_cli(void *cli_){
     wait(500000);
 
     free(cli);
+
+    pthread_exit(NULL);
 
 }
 
@@ -201,7 +202,7 @@ void *send_menssage_thread(void *param){
         recv_msg.message = buffer_aux;
         recv_msg.client = client;
         recv_msg.x = 1;
-        int err = exec_n_segundos(1,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
+        exec_n_segundos(1,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
 
         if(strcmp(buffer_aux,"<ACK>") == 0){
             ack = 1;
@@ -219,9 +220,12 @@ void *send_menssage_thread(void *param){
 
 
 
-    if(ack = 0){
+    if(ack == 0){
 
-        //mate a conexao;
+        pthread_t disconect;
+        pthread_create(&(disconect), NULL, disconnect_cli, (void*)(client));
+        printf("Conexão perdida com o cliente %s.\n", client->nickname);    
+        wait(500000);
 
     }
 
@@ -272,13 +276,7 @@ void send_message(char*sender_nickname, char*message){
 void *receive_message(void *param){
 
     CLIENT*client = (CLIENT*)param;
-    int ret_thread = 0;
-
-
-    
-
-    int cod_error;
-    char buffer[MENS_SIZE] = {0};
+    int ret_thread = 0;    
 
     while(1)
     {   
@@ -294,12 +292,12 @@ void *receive_message(void *param){
         sem_wait( &(client->sem_read) );
 
 
-        char buffer[4097] = {0};
+        char buffer[MENS_SIZE+1] = {0};
         RECEIVE_MESSAGE_STRUCT recv_msg;
         recv_msg.message = buffer;
         recv_msg.client = client;
         recv_msg.x = 2;
-        int err = exec_n_segundos(2,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
+        exec_n_segundos(2,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
 
         char nickname[50];
         strcpy(nickname,client->nickname);
@@ -313,7 +311,7 @@ void *receive_message(void *param){
                 char pong[5] = {0};
                 strcpy(pong,"PONG");
                 
-                cod_error = send(client->socket, pong, 4, 0);
+                send(client->socket, pong, 4, 0);
 
 
                 printf("Ping recebido de %s.\n",nickname);
@@ -321,8 +319,6 @@ void *receive_message(void *param){
             else if(strcmp(buffer,"/quit") == 0){
 
                 pthread_t disconect;
-                int a;
-                int *thread_ret = &a;
                 pthread_create(&(disconect), NULL, disconnect_cli, (void*)(client));
                 printf("Cliente %s desconectando.\n",nickname);    
                 wait(500000);
@@ -333,7 +329,7 @@ void *receive_message(void *param){
                 char ack[5] = {0};
                 strcpy(ack,"ACK");
                 
-                cod_error = send(client->socket, ack, 4, 0);
+                send(client->socket, ack, 4, 0);
                 printf("Mensagem \"%s\" recebida de %s, enviando aos outros clientes.\n",buffer,nickname);
                 send_message(nickname, buffer);
                 
@@ -389,10 +385,7 @@ void* conecta_cliente(void *param){
             printf("Servidor Cheio, impossivel adicionar mais clientes\n");
             continue;
         }
-        
-
-        char ack[40];
-        
+                
         /*fazendo o nome padrao do usuario*/
         char standand_nickname[50];
         char aux[10];
