@@ -23,10 +23,6 @@ servidor
 */
 sem_t sem_connect_fail;
 
-/*
-Modificar o connect_signal
-*/
-sem_t sem_connect;
 
 /*
 Armazena o sock de comunucacao do cliente, caso estaja -1
@@ -55,12 +51,6 @@ Armazena o numero de tentativas falhas de enviar mensagem
 */
 int num_connect_fail = 0;
 
-/*
-Armazena se o programa esta tentando se conectar a um servidor
-0 - não tentando;
-1 - tentnado conectar
-*/
-int connect_signal = 0;
 
 /*
 Guarda as threads do sistema, a thread[0] é a de envio
@@ -85,24 +75,15 @@ conectado ao servidor
 @PARAMETROS
     char *ip - endereço IP do server no formato string(X.X.X.X)
 */
-void *creat_connect(void* ip_par){
-
-    char* ip = (char*)ip_par;
+int creat_connect(char* ip){
 
     sock_server = -1;
 
     int cod_error = 0;
 
-    int ret_thread = 0;
-
     sock_server = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_server < 0){
         error(ERROR_SOCK);
-        /*ao nao conseguir criar o socket, o programa e encerrado*/
-        sem_wait(&sem_connect);
-        connect_signal = 0;
-        sem_post(&sem_connect);
-        
         exit(ERROR_CONNECT_COD);
     }
 
@@ -116,22 +97,11 @@ void *creat_connect(void* ip_par){
     cod_error = connect(sock_server, (struct sockaddr *)&addrserver, sizeof(sockaddr_ip));
     if (cod_error != 0)
     {
-        ret_thread = ERROR_CONNECT_COD;
-        /*ao nao conseguir conectar ao servidor, o programa retorna ao inicio, mas nao encerra*/
-        sem_wait(&sem_connect);
-        connect_signal = 0;
-        sem_post(&sem_connect);
-
         sock_server = -1;
-
-        pthread_exit(&ret_thread);
+        return ERROR_CONNECT_COD;
     }
 
-    sem_wait(&sem_connect);
-    connect_signal = 0;
-    sem_post(&sem_connect);
-
-    pthread_exit(&ret_thread);
+    return 0;
 }
 
 /*
@@ -164,49 +134,6 @@ int wait_ack(){
 
         nanosleep(&time_sleep, NULL);
     }
-    
-    return 1;
-
-}
-
-/*
-Esta função espera o cliente se conectar, caso o tempo maximo seja atingindo
-a thread para se conectar é cancelada e o programa apresenta um erro de conexao.
-OBS: O connect_signal deve ser setado para 1
-@PARAMETROS
-    - pthread_t - thread a se cancelada caso tenha demore muito para se conectar
-@RETORNO
-    - int - 0 - caso tenha conectado
-          - 1 - caso nao tenha conectado e a thread tenha sido cancelada
-*/
-int wait_connect(pthread_t connect_thread){
-
-    struct timespec time_sleep;
-
-    time_sleep.tv_nsec = 100000000;
-    time_sleep.tv_sec = 0;
-
-    if (connect_signal == 0)
-    {
-        return 0;
-    }
-
-    int i;
-    for (i = 0; i < 20; i++)
-    {
-        if (connect_signal == 0)
-        {
-            return 0;
-        }
-
-        nanosleep(&time_sleep, NULL);
-    }
-
-    pthread_cancel(connect_thread);
-    
-    sem_wait(&sem_connect);
-    connect_signal = 0;
-    sem_post(&sem_connect);
     
     return 1;
 
@@ -405,6 +332,10 @@ void *receive_menssage(){
                 ack_signal = 1;
             }
             sem_post(&sem_ack);
+
+            sem_wait(&sem_connect_fail);
+            num_connect_fail = 0;
+            sem_post(&sem_connect_fail);
         }
         /*verifica se é uma resposta do ping*/
         else if (strcmp(buffer, "PONG") == 0)
@@ -478,15 +409,7 @@ int command(char* buffer){
         
             printf("Se conectando a: %s...\n", ip);
 
-            pthread_t thread_connect;
-
-            sem_wait(&sem_connect);
-            connect_signal = 1;
-            sem_post(&sem_connect);
-
-            /*cria a thread que ira realizar a conexao com o servidor*/
-            pthread_create(&thread_connect, NULL, creat_connect, (void*)(buffer));
-            wait_connect(thread_connect);            
+            creat_connect(ip);
 
             /*verifica se foi conectado*/
             if(sock_server > 0){
@@ -530,17 +453,12 @@ int command(char* buffer){
 
         else
         {
-
-            clock_t clocks[2];
-
             strcpy(buffer, "PING");
             
             sem_wait(&sem_ping);
             ping_signal = -1;
             sem_post(&sem_ping);
             
-            clocks[0] = clock();
-
             sem_wait(&sem_send);
             send(sock_server, buffer, MENS_SIZE, 0);
             sem_post(&sem_send);
@@ -549,15 +467,12 @@ int command(char* buffer){
 
             ping_ret = wait_ping();
 
-            clocks[1] = clock();
-
             sem_wait(&sem_ping);
             ping_signal = 0;
             sem_post(&sem_ping);
 
             if (ping_ret == 0)
             {
-                printf("Tempode de resposta: %.0lfms\n", ((clocks[1] - clocks[0])/(double)CLOCKS_PER_SEC)*1000.0);
                 return 0;
             }
 
@@ -596,7 +511,6 @@ int main(int argc, char *argv[]){
     sem_init(&sem_send,0,1);
     sem_init(&sem_ping,0,1);
     sem_init(&sem_connect_fail,0,1);
-    sem_init(&sem_connect,0,1);
 
     /*modifica o tratamento do sinal SIGING*/
     signal(SIGINT, stop_client);
