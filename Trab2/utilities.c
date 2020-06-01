@@ -53,7 +53,7 @@ void* ff(void *param){
     printf("aqui meu lindo4\n");
     while(1){
         int n;
-        n = 0;
+        n++;
     }
 
     return 0;
