@@ -1,53 +1,17 @@
-# Manual de utilização do IRC
+# Trabalho Redes IRC
 
 ## Desenvolvedores
 Luan Ícaro Pinto Arcanjo 10799230  
 Rodrigo Cesar Arboleda 10416722
 
-## Compilar código
-Para compilar o programa deve-se utilizar o comando “make”, este irá execultar a receita “all”.
-```
-$ make
-```
-Após execultar “make”, será gerado os arquivos intermediários .o. Estes arquivos não são excluídos após o programa ser compilado. Para tal, basta execultar o comando “make clean”.
-```
-$ make clean
-```
-Com isso temos o código compilado em um arquivo chamado “irc”.
+## Pastas
+As pastas são independentes, ou seja, uma não depende da outra. Tal formato foi adotado para poder deixar bem definido cada entrega do trabalho.
 
-
-## Rodar o programa
-Para rodar o programa basta execultar o comando “make run”.
-```
-$ make run
-```
-Caso não deseje rodar o comando “make run” basta compilar o código com o comando “make” e em seguida rodar o arquivo “irc” com o comando:
-```
-$ ./irc
-```
-
-## Utilizando o programa
-Ao inicia o programa existem 2 opções, 1 para se conectar a um servidor e 2 para abrir um servidor.
-### 1 - Conectar a um computador
-Está opção te levará a para digitar um IP. Digite um IP de um outro computador que está aguardando sua conexão para estabelecer uma.
-### 2 - esperar conexão
-Está opção te colocará em modo de espera, esperando um outro computador para se conectar. Para isso, passe o IP de seu computador para que o outro usuário possa se conectar.
-
-## Encerrando o programa
-Para encerrar o programa basta pressionar Ctrl+C que ele irá fechar os sockets abertos e encerrar o programa.  
-  
-Caso o cliente se desconecte do servidor, uma mensagem dizendo para digitar uma mensagem irá aparecer, então basta digitar uma mensagem que o programa irá encerrar.
-
-
-## Erros comuns
-### ERRO AO ASSOCIAR ENDEREÇO
-Tal erro pode ser causado caso tenha se encerrado o programa de forma indevida. Dessa forma a porta continua ocupada. Para solucionar tal problema, reinicie o terminal. Caso o erro persistir, reinicie sua sessão no GNOME (fazer logoff).
-### ERRO AO SE CONECTAR AO SERVIDOR
-Este erro é causado em maioria quando o endereço de IP está errado ou o servidor não abriu corretamente a porta.
-Caso o servidor não tenha aberto a porta, a porta 1515 deve ser aberta na rede para que a conexão possa ser feita.
-Esse erro pode ser causado caso o cliente encerre a conexão com o servidor. Neste caso é preciso estabelecer uma nova conexão.
-
-Caso ocorra algum outro erro, entre em contato com os desenvolvedores.
+### Trab1
+A pasta Trab1 é referente ao primeiro módulo do projeto.
+ 
+### Trab2
+A pasta Trab2 é referente ao segundo módulo do projeto já com os arquivos dos módulos anteriores utilizados.
 
 ## Versão dos programas utilizados
 ### compilador
