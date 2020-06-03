@@ -1,7 +1,7 @@
 # Manual de utilização do IRC
  
 ## Desenvolvedores
-Luan Ícaro Pinto Arcanjo 10799230 
+Luan Ícaro Pinto Arcanjo 10799230  
 Rodrigo Cesar Arboleda 10416722
  
 ## Compilar código
