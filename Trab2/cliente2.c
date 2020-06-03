@@ -455,7 +455,7 @@ int command(char* buffer){
 
             else
             {
-                printf("Falha ao conectar ao ip %s\n", ip);
+                printf("Falha ao se conectar ao servidor\n");
             }
                      
             
