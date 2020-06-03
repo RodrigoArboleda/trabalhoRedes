@@ -70,9 +70,19 @@ Cada cliente é identificado com um número e o qual é mostrado antes da mensag
 
 Suas mensagens são mostradas para você sem identificação na frente mas os clientes que estão conectados, quando recebem suas mensagens, possuem i.
 
-### Utilizando o programa - Servidor
+## Utilizando o programa - Servidor
 Ao iniciar o servidor, ele irá gerenciar de forma automática as conexões, só é preciso abrir a porta 1515 na rede para que o servidor possa estabelecer conexões com outros computadores.
- 
+
+### Verificando número de clientes no servidor
+Para verificar o número de clientes ativo no servidor deve digitar o comando "/numero_clientes" no servidor.
+```
+/numero_clientes
+```
+### Encerrando o Servidor
+Para encerrar o servidor deve ser executado o comando "/shutdown".
+```
+"/shutdown"
+```
 ## Erros comuns
 ### ERRO AO ASSOCIAR ENDEREÇO
 Tal erro pode ser causado caso tenha se encerrado o programa de forma indevida. Dessa forma a porta continua ocupada. Para solucionar tal problema, reinicie o terminal. Caso o erro persistir, reinicie sua sessão no GNOME (fazer logoff).
