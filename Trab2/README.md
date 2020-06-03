@@ -81,7 +81,7 @@ Para verificar o número de clientes ativo no servidor deve digitar o comando "/
 ### Encerrando o Servidor
 Para encerrar o servidor deve ser executado o comando "/shutdown".
 ```
-"/shutdown"
+/shutdown
 ```
 ## Erros comuns
 ### ERRO AO ASSOCIAR ENDEREÇO
