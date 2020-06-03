@@ -214,6 +214,42 @@ void disconect(){
 }
 
 /*
+Esta funcao eh chamada quando acontece uma desconeccao por o 
+servidor ser desligado por erro ligado a conecao com o servidor.
+Desconecta o cliente e encerra as threads de recive e send do progama.
+OBS:Caso seja a thread recive ou send que tenha chamado a funcao ela nao
+ira matar esta thread e ela deve encerrar apos o retorno da funcao
+*/
+void disconect_erro(){
+    printf("Encerrando conexão com o servidor...\n");
+    
+    sem_wait(&sem_ack);
+    ack_signal = 0;
+    sem_post(&sem_ack);
+
+    sem_wait(&sem_ping);
+    ping_signal = 0;
+    sem_post(&sem_ping);
+
+    if (thread[0] != pthread_self())
+    {
+        pthread_cancel(thread[0]);
+    }
+    
+    
+    if (thread[1] != pthread_self())
+    {
+        pthread_cancel(thread[1]);
+    }
+
+    shutdown(sock_server, 1);
+    sock_server = -1;
+    
+    printf("Conexão encerrada.\n");
+    return;
+}
+
+/*
 Esta funcao envia a mensagem para o servidor conectado
 a funcao espera o retorno ACK do servidor, caso nao receba
 tenta eviar novamente 5 vezes, apos isso ela informa o erro
@@ -320,7 +356,7 @@ void *receive_menssage(){
         {
             error(ERROR_CONNECT);
             ret_thread = ERROR_CONNECT_COD;
-            disconect();
+            disconect_erro();
             pthread_exit(&ret_thread);
         }
         /*verifica se e um ACK do servidor*/
@@ -364,7 +400,7 @@ void *receive_menssage(){
             {
                 error(ERROR_CONNECT);
                 ret_thread = ERROR_CONNECT_COD;
-                disconect();
+                disconect_erro();
                 pthread_exit(&ret_thread);
             }
 
@@ -453,7 +489,7 @@ int command(char* buffer){
 
         else
         {
-            strcpy(buffer, "PING");
+            strcpy(buffer, "/ping");
             
             sem_wait(&sem_ping);
             ping_signal = -1;
@@ -524,7 +560,7 @@ int main(int argc, char *argv[]){
         if (num_connect_fail >= 3)
         {
             printf("O servidor não respondeu a 3 mensagens.\n");
-            disconect();
+            disconect_erro();
             sem_wait(&sem_connect_fail);
             num_connect_fail = 0;
             sem_post(&sem_connect_fail);
