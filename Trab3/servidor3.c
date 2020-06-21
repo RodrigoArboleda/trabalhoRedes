@@ -5,8 +5,6 @@
 
 /*FALTA
 
-    - decidir o que fazer caso o adm saia do canal
-        -- tratamento caso de se o adm sair, o canal continuar
     - verificar se o nome do canal no join eh valido, ver o que eh um nome valido no rfc
 */
 
@@ -23,10 +21,13 @@ serve so pro comando /num_clientes */
 sem_t sem_num_clientes;
 int num_clientes;
 
+/*utilizada para tratar o fechamento de canais,*/
+int shutdown_server_flag;
+
 /*A STRUCT CLIENT esta definida em utilities.h, por a lista necessitar de saber da struct*/
 typedef struct SEND_MESSAGE_STRUCT_{
     char client_from_nickname[40];
-    char client_from_message[40];
+    char client_from_message[4096];
     CLIENT*client;
 }SEND_MESSAGE_STRUCT;
 
@@ -133,33 +134,10 @@ void *disconnect_cli(void *cli_){
     client->connect_status = 0;
     sem_post( &(client->sem_connect_status) );
 
-    /*remover da lista de clientes sem canal, ou do canal que esta no momento, primeira coisa a se fazer, 
-    /pois isto impossibilita de mandarem novas mensagens a este cliente, evitando seg fault e deadlock
-    */
-    /*Se o cliente nao esta em um canal*/
-    if(client->channel == NULL){
-        sem_wait( &(sem_lista_clientes_sem_canal) );
-        sem_wait(&(client->sem_nickname));
-        CLIENT* verifica = remove_list(lista_clientes_sem_canal, client->nickname);
-        sem_post(&(client->sem_nickname));
-        /*Abaixando o número de clientes conectados*/
-        if(verifica != NULL)
-            num_cliente_sem_canal--;
-        sem_post( &(sem_lista_clientes_sem_canal) );
-        /*se entrar aqui, significa que foi chamada duas funcoes para desligar */
-
-    }
-    else{
-
-        //fazer
-    }
-
-    sem_wait(&(sem_num_clientes));
-    num_clientes--;
-    sem_post(&(sem_num_clientes));
+    /*removendo do canal ou da lista de clientes sem canal, caso nao esteja e um canal
+    usa a shutdown_server_flag para lidar com a questao se deve ou nao enviar mensagens*/
+    client_quit_channel(client,shutdown_server_flag);  
     
-    
-
     sem_wait( &(client->sem_read) );
     sem_post( &(client->sem_read) );
 
@@ -398,6 +376,7 @@ void send_message(CLIENT*sender, char*message){
 
     /*verificando se o sender esta em um canal*/
     if(sender->channel == NULL){
+
         servidor_send_message_to_client(sender,"Nao Esta Conectado a Nenhum canal. Se conecte a um canal antes de enviar mensagens.");
         return;
     }
@@ -567,7 +546,9 @@ int client_change_name(CLIENT*client, char* nickname_atual, char*novo_nickname){
     sem_wait( &(client->sem_muted) );
     if(client->muted){
         sem_post( &(client->sem_muted) );
-        servidor_send_message_to_client(client,"Nao se pode mudar o nickname estando mutado, saia do canal ou espere o administrador te desmutar.");
+        char msg[4096];
+        strcpy(msg,"Nao se pode mudar o nickname estando mutado, saia do canal ou espere o administrador te desmutar.");
+        servidor_send_message_to_client(client,msg);
         return 0;
     }
     sem_post( &(client->sem_muted) );
@@ -671,6 +652,117 @@ void channel_kick(CHANNEL*channel,CLIENT*admin,char*nickname_kick){
     
 }
 
+/*Esta funcao remove o cliente da lista de canal em que esta, 
+ou da lista de clientes sem canais caso esteja sem canal
+@PARAMETROS
+    - CLIENTE*client - cliente que sera removido
+    - int flag - valores possiveis
+        0 - envia mensagens ao outros clientes, avisando que o cliente saiu
+        1 - nao envia mensagens aos outros clientes*/
+void client_quit_channel(CLIENT*client,int flag){
+
+    if(flag != 0 && flag != 1){
+        return;
+    }
+
+    /*pegando o nickname do cliente*/
+    char nickname[50];
+    sem_wait( &(client->sem_nickname) );
+    strcpy(nickname,client->nickname);
+    sem_post( &(client->sem_nickname) );
+
+    /*removendo o cliente do canal em que esta, ou da lista de sem canal caso esteja sem canal*/
+    CHANNEL* channel_ant = (CHANNEL*)client->channel;
+    /*se nao estava em um canal*/
+    if(channel_ant == NULL){
+        sem_wait( &(sem_lista_clientes_sem_canal) );
+        remove_list(lista_clientes_sem_canal, nickname);
+        num_cliente_sem_canal--;
+        sem_post( &(sem_lista_clientes_sem_canal) );
+    }
+    /*removendo o cliente do canal em que estava*/
+    else{
+        /*verificando se era o adm do canal que esta saindo*/
+        int is_adm = client_is_adm(client, 0);
+
+        /*avisando que esta saindo do canal*/
+        channel_remove_client(channel_ant,nickname);
+
+        sem_wait(&(channel_ant->sem_lista_clientes));
+        /*se o canal nao ficou vazio*/
+        if(channel_ant->num_cliente != 0){
+            
+            if(flag == 0){
+                /*enviando aos outros clientes que estao no canal, avisando que o cliente saiu*/
+                LIST_ELEMENT* no = channel_ant->lista_clientes->listfirst;
+
+                while(no != NULL){
+
+                    CLIENT*cli_no = no->client_ele;
+
+                    char message[4096];
+                    sprintf(message,"%s saiu do canal.",nickname);
+                    servidor_send_message_to_client(cli_no,message);
+
+                    no = no->next;
+                }
+
+            }
+
+            if(is_adm){
+                /*se o adm sai do canal, a primeira pessoa da lista de clientes do canal se torna o novo adm */
+                CLIENT* new_adm = channel_ant->lista_clientes->listfirst->client_ele;
+                /*mudando o admin do canal, 
+                se mudafaz isto mudando o atributo admin_name do channel para o nickname do novo adm*/
+                sem_wait(&(new_adm->sem_nickname));
+                char adm_nick[50];
+                strcpy(adm_nick,new_adm->nickname);
+                sem_post(&(new_adm->sem_nickname));
+                strcpy(  channel_ant->admin_name, adm_nick);
+
+                /*avisando os clientes do canal do novo administrador*/
+                if(flag == 0){
+                    LIST_ELEMENT* no = channel_ant->lista_clientes->listfirst;
+                    while(no != NULL){
+
+                        CLIENT*cli_no = no->client_ele;
+
+                        char message_adm[4096];
+                        sprintf(message_adm,"%s eh o novo administrador do canal.",nickname);
+                        servidor_send_message_to_client(cli_no,message_adm);
+
+                        no = no->next;
+                    }
+
+                }
+                
+
+            }
+
+            sem_post(&(channel_ant->sem_lista_clientes));
+            
+
+        }else{
+            sem_post(&(channel_ant->sem_lista_clientes));
+            /*se nao estamos dando shutdown no server, 
+            pois a funcao shutdown_server faz o mesmo que a parte abaixo e dara deadlock pois as
+            duas utilizam o semaforo sem_lista_canais*/
+            if(shutdown_server_flag == 0){
+                /*se o canal ficou vazio, deleta-se o canal*/
+                /*removendo da lista de canais*/
+                sem_wait(&(sem_lista_canais));
+                CHANNEL* remove = list_remove_channel(lista_canais, channel_ant->name);
+                sem_post(&(sem_lista_canais));
+                /*utilizando o remove, caso ja tenha alguma hora removido o canal da lista, o remove sera NULL */
+                delete_channel(remove);
+
+            }
+            
+        }
+    client->channel = NULL;
+    }
+}
+
 /*Esta funcao tem o proposito de colocar um cliente em um canal ou na lista de clientes sem canal, dependendo da flag
 @PARAMETROS
     - CLIENTE*client - cliente que sera movido
@@ -692,35 +784,14 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
     if(flag == 0 && channel_name == NULL)
         return -1;
 
-    /*pegando o nickname do administrador*/
+    /*pegando o nickname do cliente*/
     char nickname[50];
     sem_wait( &(client->sem_nickname) );
     strcpy(nickname,client->nickname);
     sem_post( &(client->sem_nickname) );
 
-    /*removendo o cliente do canal em que esta, ou da lista de sem canal caso esteja sem canal*/
-    CHANNEL* channel_ant = (CHANNEL*)client->channel;
-    /*se nao estava em um canal*/
-    if(channel_ant == NULL){
-        sem_wait( &(sem_lista_clientes_sem_canal) );
-        remove_list(lista_clientes_sem_canal, nickname);
-        num_cliente_sem_canal--;
-        sem_post( &(sem_lista_clientes_sem_canal) );
-    }
-    /*removendo o cliente do canal em que estava*/
-    else{
-        /*verificando se era o adm do canal que esta saindo*/
-        int is_adm = client_is_adm(client, 0);
-
-        channel_remove_client(channel_ant,nickname);
-                    
-        if(is_adm){
-            /*decidir o que fazer caso o adm esteja saindo do canal*/
-
-        }
-
-
-    }
+    /*removendo o cliente do canal, ou da lista de sem canais*/
+    client_quit_channel(client,1);
                 
     if(flag == 0){
         CHANNEL *novo_channel;
@@ -769,6 +840,12 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
         else{
             servidor_send_message_to_client(client,"Se juntou ao canal com sucesso");
         }
+        /*avisando os outros do canal que o client entrou*/
+        char message_c[4096];
+        sem_wait(&(client->sem_nickname));
+        sprintf(message_c,"%s entrou no canal.",client->nickname);
+        sem_post(&(client->sem_nickname));
+        send_message(client,message_c);
                     
 
 
@@ -1101,35 +1178,40 @@ void shutdown_channel(CHANNEL* channel, int flag){
     sem_wait( &(channel->sem_lista_clientes) );
     pthread_t threads_disconnect[channel->num_cliente];
     int i = 0;
-    LIST_ELEMENT* no = channel->lista_clientes->listfirst;
-    /*iterando sobre os nos da lista, para pegar os clientes que estao nela*/
-    while(no != NULL){
 
-        CLIENT *client = no->client_ele;
+    if(channel->num_cliente != 0){
+        LIST_ELEMENT* no = channel->lista_clientes->listfirst;
+        /*iterando sobre os nos da lista, para pegar os clientes que estao nela*/
+        while(no != NULL){
 
-        /*Se eh para desconectar os clientes*/
-        if(flag == 1){
-            /*criando as threads para desconectar o cliente*/
-            pthread_create(&(threads_disconnect[i]), NULL, disconnect_cli, (void*)(client));
+            CLIENT *client = no->client_ele;
+
+            /*Se eh para desconectar os clientes*/
+            if(flag == 1){
+                /*criando as threads para desconectar o cliente*/
+                pthread_create(&(threads_disconnect[i]), NULL, disconnect_cli, (void*)(client));
+            }
+            /*se eh para colocar os clientes na lista de clientes sem canal*/
+            else if(flag == 0){
+                client->channel = NULL;
+                sem_wait( &(client->sem_muted) );
+                client->muted = 0;
+                sem_post( &(client->sem_muted) );
+
+                /*adicionando o cliente */
+                sem_wait(&(sem_lista_clientes_sem_canal));
+                insert_list(lista_clientes_sem_canal, client);
+                /*incrementando o numero de usuarios conectados*/
+                num_cliente_sem_canal++;
+                sem_post(&(sem_lista_clientes_sem_canal));
+            }
+            
+            i++;
+            no->client_ele = NULL;
+            no = no->next;
         }
-        /*se eh para colocar os clientes na lista de clientes sem canal*/
-        else if(flag == 0){
-            client->channel = NULL;
-            sem_wait( &(client->sem_muted) );
-            client->muted = 0;
-            sem_post( &(client->sem_muted) );
-
-            /*adicionando o cliente */
-            sem_wait(&(sem_lista_clientes_sem_canal));
-            insert_list(lista_clientes_sem_canal, client);
-            /*incrementando o numero de usuarios conectados*/
-            num_cliente_sem_canal++;
-            sem_post(&(sem_lista_clientes_sem_canal));
-        }
-        
-        i++;
-        no = no->next;
     }
+    
     sem_post( &(channel->sem_lista_clientes) );
     /*Se eh para desconectar os clientes*/
     if(flag == 1){
@@ -1210,6 +1292,8 @@ int main(){
     sem_init(&sem_num_clientes,0,1);
     num_clientes = 0;
 
+    shutdown_server_flag = 0;
+
     int sock_task = prepare_server_socket();
 
     pthread_t conectando_clientes;
@@ -1230,6 +1314,8 @@ int main(){
         }
         
     }
+
+    shutdown_server_flag = 1;
 
     printf("Desligando o Servidor...\n");
 

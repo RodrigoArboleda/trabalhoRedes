@@ -81,4 +81,14 @@ void* conecta_cliente(void *param);
 void shutdown_server(int sock_task);
 
 
+/*Esta funcao remove o cliente da lista de canal em que esta, 
+ou da lista de clientes sem canais caso esteja sem canal
+@PARAMETROS
+    - CLIENTE*client - cliente que sera removido
+    - int flag - valores possiveis
+        0 - envia mensagens ao outros clientes, avisando que o cliente saiu
+        1 - nao envia mensagens aos outros clientes*/
+void client_quit_channel(CLIENT*client,int flag);
+
+
 #endif

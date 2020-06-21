@@ -14,6 +14,9 @@ CHANNEL* create_channel(char*name,char*admin_name){
 
 void delete_channel(CHANNEL*channel){
 
+    if(channel == NULL)
+        return;
+
     delete_list(channel->lista_clientes);
     sem_destroy(&(channel->sem_lista_clientes));
     free(channel);
