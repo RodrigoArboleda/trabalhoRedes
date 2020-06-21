@@ -10,8 +10,8 @@ int num_cliente = 0;
 /*A STRUCT CLIENT esta definida em utilities.h, por a lista necessitar de saber da struct*/
 
 typedef struct SEND_MESSAGE_STRUCT_{
-    char client_from_nickname[40];
-    char client_from_message[40];
+    char client_from_nickname[50];
+    char client_from_message[4096];
     CLIENT*client;
 }SEND_MESSAGE_STRUCT;
 

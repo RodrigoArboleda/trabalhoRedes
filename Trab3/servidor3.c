@@ -792,6 +792,13 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
     if(flag == 0 && channel_name == NULL)
         return -1;
 
+    /*TODO , GOTO*/
+    /*
+    if( nome_not_valid){
+        servidor_send_message_to_client(client,"Nome de canal invalido.");
+        return 0;
+    }*/
+
     sem_wait( &(client->sem_muted) );
     client->muted = 0;
     sem_post( &(client->sem_muted) );
@@ -924,6 +931,8 @@ void *receive_message(void *param){
         sem_post( &(client->sem_read) );
 
         if( strlen(buffer) > 0 ){
+
+            printf("Mensagem \"%s\" recebida de %s.\n",buffer,nickname);
             /*se for um PING, responde PONG*/
             if(strcmp(buffer,"/ping") == 0){
                 char pong[5] = {0};
@@ -1093,7 +1102,6 @@ void *receive_message(void *param){
                 
                 send(client->socket, ack, 4, 0);
 
-                printf("Mensagem \"%s\" recebida de %s, enviando aos outros clientes do canal conectado.\n",buffer,nickname);
                 send_message(client, buffer);           
                 
             }
