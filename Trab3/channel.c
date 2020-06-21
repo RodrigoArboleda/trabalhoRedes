@@ -222,7 +222,7 @@ CHANNEL *list_get_channel_by_name(LIST_CHANNEL*l,char*name){
         if(strcmp(no->channel->name,name) == 0)
             return no->channel;
         
-        no->next;
+        no = no->next;
     }
 
     return NULL;

@@ -44,10 +44,10 @@ Esta função recebe um endereço IP no formato 32bits e o converte para o seu f
 @RETORNO
 */
 void byte_to_string_ip_adress(char*ip_string,int ip){
-    int byte0 = (ip>>24)&0xff;
-    int byte1 = (ip>>16)&0xff;
-    int byte2 = (ip>>8)&0xff;
-    int byte3 = (ip)&0xff;
+    int byte0 = (ip>>0)&0xff;
+    int byte1 = (ip>>8)&0xff;
+    int byte2 = (ip>>16)&0xff;
+    int byte3 = (ip>>24)&0xff;
 
     sprintf(ip_string,"%d.%d.%d.%d",byte0,byte1,byte2,byte3);
 }   

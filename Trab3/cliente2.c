@@ -526,7 +526,9 @@ int command(char* buffer){
 
     else
     {
-        printf("comando desconhecido.\n");
+        void *thread_ret;
+        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+        pthread_join(thread[0],  &thread_ret);
         return 3;
     }
     

@@ -26,7 +26,7 @@ int shutdown_server_flag;
 
 /*A STRUCT CLIENT esta definida em utilities.h, por a lista necessitar de saber da struct*/
 typedef struct SEND_MESSAGE_STRUCT_{
-    char client_from_nickname[40];
+    char client_from_nickname[50];
     char client_from_message[4096];
     CLIENT*client;
 }SEND_MESSAGE_STRUCT;
@@ -520,6 +520,11 @@ int mute_client(CHANNEL*channel,CLIENT*admin,char*nickname,int mute){
         if(mute == 0)
             sprintf(message,"%s desmutado com sucesso.",nickname);
         servidor_send_message_to_client(admin,message);
+
+        if(mute == 1)
+            servidor_send_message_to_client(cli_muted,"Voce foi mutado.");
+        if(mute == 0)
+            servidor_send_message_to_client(cli_muted,"Voce foi desmutado.");
         return 0;
     }else{
         
@@ -562,11 +567,12 @@ int client_change_name(CLIENT*client, char* nickname_atual, char*novo_nickname){
     /*Se o cliente esta sem canal*/
     if(client->channel == NULL){
         sem_wait( &(sem_lista_clientes_sem_canal) );
-        cli_exist = list_get_client_by_name(channel->lista_clientes, novo_nickname);
+    
+        cli_exist = list_get_client_by_name(lista_clientes_sem_canal, novo_nickname);
         /*nao existe um cliente com este nickname ainda*/
+        
         if(cli_exist == NULL){
 
-            
             sem_wait( &(client->sem_nickname) );
             strcpy(client->nickname,novo_nickname);
             
@@ -574,7 +580,7 @@ int client_change_name(CLIENT*client, char* nickname_atual, char*novo_nickname){
         }else{
             servidor_send_message_to_client(client,"Ja existe alguem com este nickname sem canal.");
         }
-
+        
         sem_post( &(sem_lista_clientes_sem_canal) );
     }
     /*Se o cliente esta em um canal*/
@@ -604,7 +610,9 @@ int client_change_name(CLIENT*client, char* nickname_atual, char*novo_nickname){
         servidor_send_message_to_client(client,"Nickname mudado com sucesso");
         char message[4096];
         sprintf(message,"%s mudou o seu nickname para %s.",nickname_atual,novo_nickname);
-        send_message(client,message);
+
+        if(client->channel != NULL)
+            send_message(client,message);
         return 1;
     }
     return 0;
@@ -784,6 +792,10 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
     if(flag == 0 && channel_name == NULL)
         return -1;
 
+    sem_wait( &(client->sem_muted) );
+    client->muted = 0;
+    sem_post( &(client->sem_muted) );
+
     /*pegando o nickname do cliente*/
     char nickname[50];
     sem_wait( &(client->sem_nickname) );
@@ -791,7 +803,7 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
     sem_post( &(client->sem_nickname) );
 
     /*removendo o cliente do canal, ou da lista de sem canais*/
-    client_quit_channel(client,1);
+    client_quit_channel(client,0);
                 
     if(flag == 0){
         CHANNEL *novo_channel;
@@ -806,6 +818,7 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
             list_insert_channel(lista_canais,novo_channel);
             is_adm = 1;
         }
+        client->channel = (void*)novo_channel;
         sem_post(&(sem_lista_canais));
 
         /*inserindo o cliente  no canal*/
@@ -833,7 +846,6 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
             servidor_send_message_to_client(client,message);
 
         }
-        client->channel = (void*)novo_channel;
         if(is_adm){
             servidor_send_message_to_client(client,"Canal criado com Sucesso, voce eh o administrador do canal");
         }
@@ -935,6 +947,11 @@ void *receive_message(void *param){
             /*Conectando este cliente a um novo canal*/
             else if(strncmp(buffer,"/join ",6) == 0){
 
+                char ack[5] = {0};
+                strcpy(ack,"ACK");
+                
+                send(client->socket, ack, 4, 0);
+
                 char comando[10];
                 char parametro[50];
                 sscanf( buffer,"%s %s",comando,parametro );
@@ -944,6 +961,11 @@ void *receive_message(void *param){
             }
             /*Retirando o cliente do canal*/
             else if(strncmp(buffer,"/unjoin ",6) == 0){
+
+                char ack[5] = {0};
+                strcpy(ack,"ACK");
+                
+                send(client->socket, ack, 4, 0);
 
                 char comando[10];
                 char parametro[50];
@@ -959,13 +981,23 @@ void *receive_message(void *param){
                 char parametro[50];
                 sscanf( buffer,"%s %s",comando,parametro );
 
-                client_change_name(client, nickname, parametro);
+                char ack[5] = {0};
+                strcpy(ack,"ACK");
+                
+                send(client->socket, ack, 4, 0);
 
+                int err = client_change_name(client, nickname, parametro);
+                printf("aquii %d\n",err);
 
             }
             /*A partir daqui sao comandos de adm*/
             /*Remove um usuario do canal, */
             else if(strncmp(buffer,"/kick ",6) == 0){
+
+                char ack[5] = {0};
+                strcpy(ack,"ACK");
+                
+                send(client->socket, ack, 4, 0);
                 /*tratando o buffer, separando o comando de seu parametro*/
                 char comando[10];
                 char parametro[50];
@@ -981,6 +1013,11 @@ void *receive_message(void *param){
             }
             /**/
             else if(strncmp(buffer,"/mute ",6) == 0){
+
+                char ack[5] = {0};
+                strcpy(ack,"ACK");
+                
+                send(client->socket, ack, 4, 0);
                 /*tratando o buffer, separando o comando de seu parametro*/
                 char comando[10];
                 char parametro[50];
@@ -996,6 +1033,12 @@ void *receive_message(void *param){
                 }
             }
             else if(strncmp(buffer,"/unmute ",8) == 0){
+
+                char ack[5] = {0};
+                strcpy(ack,"ACK");
+                
+                send(client->socket, ack, 4, 0);
+
                 /*tratando o buffer, separando o comando de seu parametro*/
                 char comando[10];
                 char parametro[50];
@@ -1011,6 +1054,10 @@ void *receive_message(void *param){
                 }
             }
             else if(strncmp(buffer,"/whois ",7) == 0){
+                char ack[5] = {0};
+                strcpy(ack,"ACK");
+                
+                send(client->socket, ack, 4, 0);
                 
                 /*tratando o buffer, separando o comando de seu parametro*/
                 char comando[10];
@@ -1090,6 +1137,7 @@ CLIENT *create_client(int sock,struct sockaddr_in addr,unsigned int size_addr, c
     sem_init(&(cli->sem_connect_status),0,1);
     sem_init(&(cli->sem_read),0,1);
     sem_init(&(cli->sem_sending_msg),0,1);
+    sem_init(&(cli->sem_muted),0,1);
     pthread_create(&(cli->thread_listen), NULL, receive_message, (void*)(cli));
 
     return cli;
@@ -1207,7 +1255,6 @@ void shutdown_channel(CHANNEL* channel, int flag){
             }
             
             i++;
-            no->client_ele = NULL;
             no = no->next;
         }
     }
@@ -1245,6 +1292,7 @@ void shutdown_server(int sock_task){
 
 
     sem_post(&(sem_lista_canais));
+
 
     sem_wait(&(sem_lista_clientes_sem_canal));
     pthread_t threads_disconnect[num_cliente_sem_canal];

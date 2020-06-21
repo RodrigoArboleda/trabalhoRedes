@@ -204,7 +204,7 @@ CLIENT* list_get_client_by_name(LIST* l, char*cli_nickname){
         if(strcmp(no->client_ele->nickname,cli_nickname) == 0)
             return no->client_ele;
         
-        no->next;
+        no = no->next;
     }
 
     return NULL;
