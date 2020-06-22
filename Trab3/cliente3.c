@@ -427,6 +427,8 @@ Esta funcao trata caso um comando seja inserido pelo usuario no terminal do irc
 */
 int command(char* buffer){
 
+    void *thread_ret;
+
     /*cada if verifica qual comando deve ser execultado*/
     if (strcmp(buffer, "/connect") == 0)
     {
@@ -524,11 +526,89 @@ int command(char* buffer){
         
     }
 
-    else
-    {
-        void *thread_ret;
+    else if(strncmp(buffer,"/join ",6) == 0){
+        if (sock_server < 0)
+        {
+            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
+            return 4;
+        }
+
         pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
         pthread_join(thread[0],  &thread_ret);
+    }
+
+    else if(strncmp(buffer,"/unjoin ",6) == 0){
+        if (sock_server < 0)
+        {
+            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
+            return 4;
+        }
+
+        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+        pthread_join(thread[0],  &thread_ret);
+    }
+
+    else if(strncmp(buffer,"/nickname ",10) == 0){
+        if (sock_server < 0)
+        {
+            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
+            return 4;
+        }
+
+        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+        pthread_join(thread[0],  &thread_ret);
+    }
+
+    else if(strncmp(buffer,"/kick ",6) == 0){
+        if (sock_server < 0)
+        {
+            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
+            return 4;
+        }
+
+        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+        pthread_join(thread[0],  &thread_ret);
+    }
+
+    else if(strncmp(buffer,"/mute ",6) == 0){
+        if (sock_server < 0)
+        {
+            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
+            return 4;
+        }
+
+        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+        pthread_join(thread[0],  &thread_ret);
+    }
+
+    else if(strncmp(buffer,"/unmute ",8) == 0){
+        if (sock_server < 0)
+        {
+            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
+            return 4;
+        }
+
+        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+        pthread_join(thread[0],  &thread_ret);
+
+    }
+
+    else if(strncmp(buffer,"/whois ",7) == 0){
+    
+        if (sock_server < 0)
+        {
+            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
+            return 4;
+        }
+
+        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+        pthread_join(thread[0],  &thread_ret);
+        
+    }
+
+    else
+    {
+        printf("Comando desconhecido.\n");
         return 3;
     }
     
