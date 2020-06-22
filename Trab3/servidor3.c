@@ -771,6 +771,29 @@ void client_quit_channel(CLIENT*client,int flag){
     }
 }
 
+/*Esta funcao tem o proposito de verificar se o nome do canal é válido
+@PARAMETROS
+    - char*channel_name - nome do canal
+@RETORNO
+    - 1 caso o nome seja inválido
+    - 0 caso o nome seja válido
+*/
+int check_channel_name(char *channel_name){
+
+    int i;
+    for ( i = 0; i < strlen(channel_name); i++)
+    {
+        /*32 = ' ' 44 = ','*/
+        if (channel_name[i] == 32 || channel_name[i] == 44)
+        {
+            return 1;
+        }
+        
+    }
+    
+    return 0;
+}
+
 /*Esta funcao tem o proposito de colocar um cliente em um canal ou na lista de clientes sem canal, dependendo da flag
 @PARAMETROS
     - CLIENTE*client - cliente que sera movido
@@ -792,12 +815,11 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
     if(flag == 0 && channel_name == NULL)
         return -1;
 
-    /*TODO , GOTO*/
-    /*
-    if( nome_not_valid){
+    /*verifica o nome do canal*/
+    if(check_channel_name(channel_name)){
         servidor_send_message_to_client(client,"Nome de canal invalido.");
         return 0;
-    }*/
+    }
 
     sem_wait( &(client->sem_muted) );
     client->muted = 0;
