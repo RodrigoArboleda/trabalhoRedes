@@ -815,10 +815,16 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
     if(flag == 0 && channel_name == NULL)
         return -1;
 
-    /*verifica o nome do canal*/
-    if(check_channel_name(channel_name)){
-        servidor_send_message_to_client(client,"Nome de canal invalido.");
+    if (flag == 1 && client->channel == NULL)
+    {
+        servidor_send_message_to_client(client,"Você não esta conectado a nenhuma canal.");
         return 0;
+    }
+    
+    /*verifica o nome do canal*/
+    if(flag == 0 && check_channel_name(channel_name)){
+        servidor_send_message_to_client(client,"Nome de canal invalido.");
+        return -1;
     }
 
     sem_wait( &(client->sem_muted) );
