@@ -26,7 +26,7 @@
 #define ERROR_CONNECT_COD 2
 #define ERROR_BIND_COD 3
 
-#define PORT_SERVER 1523
+#define PORT_SERVER 1515
 #define MAX_CLIENT 1
 #define MENS_SIZE 4096
 
