@@ -200,7 +200,7 @@ void *send_menssage_thread(void *param){
     /*copiando para buffer a mensagem que devemos enviar*/
     
     /*montando a mensagem, com o nome de quem enviou*/
-    char buffer[4097];
+    char buffer[4200];
     strcpy(buffer,send_msg.client_from_nickname);
     strcat(buffer,": ");
     strcat(buffer, send_msg.client_from_message);
