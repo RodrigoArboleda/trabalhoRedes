@@ -1023,8 +1023,7 @@ void *receive_message(void *param){
                 
                 send(client->socket, ack, 4, 0);
 
-                int err = client_change_name(client, nickname, parametro);
-                printf("aquii %d\n",err);
+                client_change_name(client, nickname, parametro);
 
             }
             /*A partir daqui sao comandos de adm*/
