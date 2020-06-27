@@ -573,14 +573,14 @@ int command(char* buffer){
         {
             if (buffer[i+10] == 0)
             {
-                nickname[0] = buffer[i+10];
+                nickname[i] = buffer[i+10];
                 nick_ok_flag = 0;
                 break;
             }
             
             if (buffer[i+10] > 32 && buffer[i+10] < 127)
             {
-                nickname[0] = buffer[i+10];
+                nickname[i] = buffer[i+10];
             }
 
             else
@@ -598,11 +598,13 @@ int command(char* buffer){
         }
         
      
-        configFile = fopen("urs.cfg", "w+");
+        configFile = fopen("usr.cfg", "w+");
         fwrite(nickname, sizeof(char), 50, configFile);
         fclose(configFile);
 
-        if (sock_server < 0)
+        printf("Nickname alterado nas configurações para:%s\n", nickname);
+
+        if (sock_server > 0)
         {
             pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
             pthread_join(thread[0],  &thread_ret);
@@ -683,7 +685,7 @@ int main(int argc, char *argv[]){
     signal(SIGINT, stop_client);
 
     FILE* configFile;
-    configFile = fopen("urs.cfg", "r+");
+    configFile = fopen("usr.cfg", "r+");
     if (configFile == NULL)
     {
         int loop = 1;
@@ -732,7 +734,7 @@ int main(int argc, char *argv[]){
         
         }   
 
-        configFile = fopen("urs.cfg", "w+");
+        configFile = fopen("usr.cfg", "w+");
         fwrite(nickname, sizeof(char), 50, configFile);
     }
 
