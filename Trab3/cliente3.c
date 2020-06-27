@@ -563,11 +563,6 @@ int command(char* buffer){
     }
 
     else if(strncmp(buffer,"/nickname ",10) == 0){
-        if (sock_server < 0)
-        {
-            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
-            return 4;
-        }
 
         char nickold[50];
         strcpy(nickold, nickname);
@@ -607,9 +602,15 @@ int command(char* buffer){
         fwrite(nickname, sizeof(char), 50, configFile);
         fclose(configFile);
 
-        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
-        pthread_join(thread[0],  &thread_ret);
+        if (sock_server < 0)
+        {
+            pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+            pthread_join(thread[0],  &thread_ret);
+            return 4;
+        }
 
+        return 0;
+        
     }
 
     else if(strncmp(buffer,"/kick ",6) == 0){
@@ -678,6 +679,9 @@ int main(int argc, char *argv[]){
     int ret_command;
     nickname[0] = 0;
 
+    /*modifica o tratamento do sinal SIGING*/
+    signal(SIGINT, stop_client);
+
     FILE* configFile;
     configFile = fopen("urs.cfg", "r+");
     if (configFile == NULL)
@@ -698,25 +702,32 @@ int main(int argc, char *argv[]){
                 {
                     if (buffer[i+10] == 0)
                     {
-                        nickname[0] = buffer[i+10];
+                        nickname[i] = buffer[i+10];
                         loop = 0;
                         break;
                     }
                     
                     if (buffer[i+10] > 32 && buffer[i+10] < 127)
                     {
-                        nickname[0] = buffer[i+10];
+                        nickname[i] = buffer[i+10];
                     }
 
                     else
                     {
-                        printf("Nickname invalido!\n");
                         break;
                     }
                                         
                 }
                 
+                if (loop == 1)
+                {
+                    printf("Nickname invalido!\n");
+                }
+                
+            }
 
+            else if(strcmp(buffer,"/quit") == 0){
+                return 0;
             }
         
         }   
@@ -732,16 +743,13 @@ int main(int argc, char *argv[]){
     
     fclose(configFile);
 
-    printf("Seu nickname e: %s\n", nickname);
+    printf("Nickname: %s\n", nickname);
 
     /*inicia os semaforos do programa*/
     sem_init(&sem_ack,0,1);
     sem_init(&sem_send,0,1);
     sem_init(&sem_ping,0,1);
     sem_init(&sem_connect_fail,0,1);  
-
-    /*modifica o tratamento do sinal SIGING*/
-    signal(SIGINT, stop_client);
 
     printf("Bem-vindo ao IRC!!!\n");
 
