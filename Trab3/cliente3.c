@@ -1,6 +1,12 @@
 #include "utilities.h"
 
 /*
+Armazena o nickname do usuario
+*/
+
+char nickname[50];
+
+/*
 Semaforos das threads
 
 Modificar o ack-signal
@@ -459,7 +465,15 @@ int command(char* buffer){
             {
                 printf("Falha ao se conectar ao servidor\n");
             }
-                     
+
+            strcpy(buffer, "/nickname ");
+            for (int i = 0; i < 50; i++)
+            {
+                buffer[i+10] = nickname[i];
+            }
+
+            pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+            pthread_join(thread[0],  &thread_ret);
             
             return 0;
         }
@@ -555,8 +569,47 @@ int command(char* buffer){
             return 4;
         }
 
+        char nickold[50];
+        strcpy(nickold, nickname);
+
+        FILE* configFile;
+        int nick_ok_flag = 1;
+        for (int i = 0; i < 50; i++)
+        {
+            if (buffer[i+10] == 0)
+            {
+                nickname[0] = buffer[i+10];
+                nick_ok_flag = 0;
+                break;
+            }
+            
+            if (buffer[i+10] > 32 && buffer[i+10] < 127)
+            {
+                nickname[0] = buffer[i+10];
+            }
+
+            else
+            {
+                break;
+            }
+                                
+        }
+
+        if (nick_ok_flag)
+        {
+            printf("Nickname invalido!\n");
+            strcpy(nickname, nickold);
+            return 0;
+        }
+        
+     
+        configFile = fopen("urs.cfg", "w+");
+        fwrite(nickname, sizeof(char), 50, configFile);
+        fclose(configFile);
+
         pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
         pthread_join(thread[0],  &thread_ret);
+
     }
 
     else if(strncmp(buffer,"/kick ",6) == 0){
@@ -623,6 +676,63 @@ int main(int argc, char *argv[]){
     char buffer[4096] = {0};
     void *thread_ret;
     int ret_command;
+    nickname[0] = 0;
+
+    FILE* configFile;
+    configFile = fopen("urs.cfg", "r+");
+    if (configFile == NULL)
+    {
+        int loop = 1;
+        while (loop)
+        {
+            printf("Por favor digite um nickname com o comando /nickname nome\n");
+            int input_size;
+            input_size = scanf(" %4096[^\n]", buffer);
+            if (input_size <= 0)
+            {
+                return 0;
+            }
+
+            else if(strncmp(buffer,"/nickname ",10) == 0){
+                for (int i = 0; i < 50; i++)
+                {
+                    if (buffer[i+10] == 0)
+                    {
+                        nickname[0] = buffer[i+10];
+                        loop = 0;
+                        break;
+                    }
+                    
+                    if (buffer[i+10] > 32 && buffer[i+10] < 127)
+                    {
+                        nickname[0] = buffer[i+10];
+                    }
+
+                    else
+                    {
+                        printf("Nickname invalido!\n");
+                        break;
+                    }
+                                        
+                }
+                
+
+            }
+        
+        }   
+
+        configFile = fopen("urs.cfg", "w+");
+        fwrite(nickname, sizeof(char), 50, configFile);
+    }
+
+    else
+    {
+        fread(&nickname, sizeof(char), 50, configFile);
+    }
+    
+    fclose(configFile);
+
+    printf("Seu nickname e: %s\n", nickname);
 
     /*inicia os semaforos do programa*/
     sem_init(&sem_ack,0,1);
