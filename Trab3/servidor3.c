@@ -577,7 +577,13 @@ int client_change_name(CLIENT*client, char* nickname_atual, char*novo_nickname){
             
             sem_post( &(client->sem_nickname) );
         }else{
+
+            char message[4096];
+            sprintf(message,"Ja existe alguem com este nickname sem canal. Seu nome atual: %s.", nickname_atual);
+            servidor_send_message_to_client(client,message);
+            /*
             servidor_send_message_to_client(client,"Ja existe alguem com este nickname sem canal.");
+            */
         }
         
         sem_post( &(sem_lista_clientes_sem_canal) );
@@ -599,15 +605,24 @@ int client_change_name(CLIENT*client, char* nickname_atual, char*novo_nickname){
             }
             sem_post( &(client->sem_nickname) );
         }else{
+            char message[4096];
+            sprintf(message,"Ja existe alguem com este nickname no canal em que esta. Seu nome atual: %s.", nickname_atual);
+            servidor_send_message_to_client(client,message);
+            /*
             servidor_send_message_to_client(client,"Ja existe alguem com este nickname no canal em que esta.");
+            */
         }
         sem_post( &(channel->sem_lista_clientes) );
     }
     /*enviando mensagem de confirmacao de operacao bem sucedida, 
     e avisando os outros clientes do canal que este cliente mudou de nome*/
     if(cli_exist == NULL){
-        servidor_send_message_to_client(client,"Nickname mudado com sucesso");
         char message[4096];
+        sprintf(message,"Nickname mudado com sucesso. Seu nome atual: %s.", novo_nickname);
+        servidor_send_message_to_client(client,message);
+        /*           
+        servidor_send_message_to_client(client,"Nickname mudado com sucesso");
+        */
         sprintf(message,"%s mudou o seu nickname para %s.",nickname_atual,novo_nickname);
 
         if(client->channel != NULL)
@@ -1228,9 +1243,10 @@ void* conecta_cliente(void *param){
         num_clientes++;
         sem_post(&(sem_num_clientes));
         
-        char message[4096];
+        /*
         sprintf(message,"Foi lhe atributo o nickname %s.",standand_nickname);
-        servidor_send_message_to_client(new,message);
+        */
+        servidor_send_message_to_client(new,"Bem-vindo ao servidor!");
         
 
         cont++;
