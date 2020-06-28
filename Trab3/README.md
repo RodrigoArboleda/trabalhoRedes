@@ -48,10 +48,31 @@ Após isso será solicitado um IP, basta digitar o ip do servidor no formato xxx
 Digite o IP do servidor:
 127.0.0.1
 ```
+### Nickname
+Ao abrir o programa pela primeira vez será exigido que você crie um nickname, este será salvo no arquivo usr.cfg. Após isso, sempre que for abrir o programa irá carregar o último nome utilizado. O nickname pode ser alterado a qualquer momento pelo comando "/nickname name".
+```
+/nickname name
+```
+#### Nome já em uso
+Caso no servidor já tenha alguém como o mesmo nome que você, o seu nome será atribuído para um nome padrão. Se você tentar atualizar o nome e não tiver em um servidor ou já tiver alguém com o mesmo nome, será mudado seu nome nas configurações locais da aplicação.  
+#### Nome no canal
+Os nomes são individuais por canal, ou seja, podem ter duas pessoas com o mesmo nick no server mas não no mesmo canal.  
+OBS: Pessoas sem canal contam como se estivessem no mesmo canal.
+
 ### Testando ping
 Este comando irá enviar ao servidor uma mensagem e aguardar a resposta dele com PONG, após receber a resposta do servidor, a mensagem recebida ser mostrada ao usuário.
 ```
 /ping
+```
+### Entrando em um canal
+Você pode entrar em um canal com o comando "/join canal", caso ele não exista irá também criar um canal.
+```
+/join canal
+```
+### Saindo de um canal
+Você pode sair de um canal com o comando "/unjoin", caso não esteja em nenhum canal, será informado que não está em nenhum canal e nada ocorrerá.
+```
+/unjoin
 ```
 ### Encerrando o programa
 Para encerrar o programa basta digitar "/quit" e a conexão será fechada e o programa encerrado. 
