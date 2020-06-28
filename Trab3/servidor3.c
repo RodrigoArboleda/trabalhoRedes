@@ -263,7 +263,7 @@ void *send_menssage_thread(void *param){
     /*copiando para buffer a mensagem que devemos enviar*/
     
     /*montando a mensagem, com o nome de quem enviou*/
-    char buffer[4097];
+    char buffer[4200];
     strcpy(buffer,send_msg.client_from_nickname);
     strcat(buffer,": ");
     strcat(buffer, send_msg.client_from_message);
@@ -401,12 +401,11 @@ void send_message(CLIENT*sender, char*message){
 
     sem_wait( &(channel->sem_lista_clientes) );
 
-    pthread_t threads_sends[num_cliente_sem_canal];
-    SEND_MESSAGE_STRUCT send_msg[num_cliente_sem_canal];
-    int i = 0;
-
-    
     LIST_ELEMENT* no = channel->lista_clientes->listfirst;
+
+    pthread_t threads_sends[channel->lista_clientes->size];
+    SEND_MESSAGE_STRUCT send_msg[channel->lista_clientes->size];
+    int i = 0;
     
     /*criando as threads para mandar mensagens*/
     /*percorrendo a lista de clientes*/
@@ -890,7 +889,7 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
         /*avisando os outros do canal que o client entrou*/
         char message_c[4096];
         sem_wait(&(client->sem_nickname));
-        sprintf(message_c,"%s entrou no canal.",client->nickname);
+        sprintf(message_c,"entrou no canal.");
         sem_post(&(client->sem_nickname));
         send_message(client,message_c);
                     
