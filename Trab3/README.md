@@ -74,6 +74,26 @@ Você pode sair de um canal com o comando "/unjoin", caso não esteja em nenhum 
 ```
 /unjoin
 ```
+### Kick
+Se você for o administrador de um canal, você pode expulsar pessoas do canal com o comando "/kick nome", essa pessoa é expulsa do canal e não banida, podendo assim voltar ao canal.
+```
+/kick nome
+```
+### Mute
+Se você for o administrador de um canal, você pode mutar pessoas do canal com o comando "/mute nome", essa pessoa não irá poder falar e nem trocar de nome, caso ela sai e entre no canal novamente ela poderá falar.
+```
+/mute nome
+```
+### Unmute
+Se você for o administrador de um canal, você pode desmutar pessoas do canal com o comando "/unmute nome".
+```
+/unmute nome
+```
+### Ver ip do usuário
+Se você for o administrador de um canal, você pode ver o ip das pessoas do canal com o comando "/whois nome".
+```
+/whois nome
+```
 ### Encerrando o programa
 Para encerrar o programa basta digitar "/quit" e a conexão será fechada e o programa encerrado. 
 ```
