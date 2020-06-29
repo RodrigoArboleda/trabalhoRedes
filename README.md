@@ -13,6 +13,9 @@ A pasta Trab1 é referente ao primeiro módulo do projeto.
 ### Trab2
 A pasta Trab2 é referente ao segundo módulo do projeto já com os arquivos dos módulos anteriores utilizados.
 
+### Trab3
+A pasta Trab3 é referente ao terceiro módulo do projeto já com os arquivos dos módulos anteriores utilizados.
+
 ## Versão dos programas utilizados
 ### compilador
 gcc (Ubuntu 9.3.0-10ubuntu2) 9.3.0
