@@ -297,7 +297,7 @@ void *send_menssage_thread(void *param){
         recv_msg.client = client;
         /*chamando a receibe_message_aux atraves do exec_n_segundos, para dar timeout nela*/
         /*esperasse um segundo para enviar a mensagem*/
-        exec_n_segundos(1,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
+        exec_n_segundos(2,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
         /*verificando se o que foi lido, eh um ack*/
         if(strcmp(buffer_aux,"<ACK>") == 0){
             ack = 1;
@@ -745,7 +745,7 @@ void client_quit_channel(CLIENT*client,int flag){
                         CLIENT*cli_no = no->client_ele;
 
                         char message_adm[4096];
-                        sprintf(message_adm,"%s eh o novo administrador do canal.",nickname);
+                        sprintf(message_adm,"%s eh o novo administrador do canal.",adm_nick);
                         servidor_send_message_to_client(cli_no,message_adm);
 
                         no = no->next;
@@ -1122,13 +1122,13 @@ void *receive_message(void *param){
                 if( is_adm ){
                     /*pesquisando na lista de clientes no canal um cliente com o nickname passado no parametro*/
                     sem_wait( &(channel->sem_lista_clientes) );
-                    CLIENT* cli_muted = list_get_client_by_name(channel->lista_clientes, parametro);
+                    CLIENT* cli_whois = list_get_client_by_name(channel->lista_clientes, parametro);
                     sem_post( &(channel->sem_lista_clientes) );
                     /*se achou um cliente*/
-                    if(cli_muted != NULL){
+                    if(cli_whois != NULL){
                         /*pegando ip do cliente achado*/
                         char ip[20];
-                        byte_to_string_ip_adress(ip,cli_muted->addr.sin_addr.s_addr);
+                        byte_to_string_ip_adress(ip,cli_whois->addr.sin_addr.s_addr);
                         /*enviando o ip do cliente achado ao adm*/
                         char message[4096];
                         sprintf(message,"O IP de %s eh %s.",parametro,ip);
@@ -1210,10 +1210,11 @@ void* conecta_cliente(void *param){
 
         /*recebendo os clientes que estao se conectando.*/
         int sock_client;
-        unsigned int size_client_addr;
+        unsigned int size_client_addr = sizeof(struct sockaddr_in);
         struct sockaddr_in addrclient;
         /*Esperando conecção de um cliente*/
         sock_client = accept(sock_task, (struct sockaddr *)&addrclient, &size_client_addr);
+
         if(sock_client < 0){
             printf("ERRO ao tentar conectar um cliente.\n");
             continue;

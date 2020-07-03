@@ -122,7 +122,7 @@ int wait_ack(){
 
     struct timespec time_sleep;
 
-    time_sleep.tv_nsec = 50000000;
+    time_sleep.tv_nsec = 100000000;
     time_sleep.tv_sec = 0;
 
     if (ack_signal == 0)
@@ -131,7 +131,7 @@ int wait_ack(){
     }
 
     int i;
-    for (i = 0; i < 10; i++)
+    for (i = 0; i < 20; i++)
     {
         if (ack_signal == 1)
         {
