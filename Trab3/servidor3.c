@@ -3,11 +3,6 @@
 #include "channel.h"
 
 
-/*FALTA
-
-    - verificar se o nome do canal no join eh valido, ver o que eh um nome valido no rfc
-*/
-
 sem_t sem_lista_canais;
 LIST_CHANNEL *lista_canais;
 int num_canais = 0;
@@ -795,10 +790,17 @@ void client_quit_channel(CLIENT*client,int flag){
 int check_channel_name(char *channel_name){
 
     int i;
-    for ( i = 0; i < strlen(channel_name); i++)
+
+    if (channel_name[0] != 38 && channel_name[0] != 35)
+    {
+        return 1;
+    }
+    
+
+    for ( i = 1; i < strlen(channel_name); i++)
     {
         /*32 = ' ' 44 = ','*/
-        if (channel_name[i] == 32 || channel_name[i] == 44)
+        if (channel_name[i] == 32 || channel_name[i] == 44 || channel_name[i] == 7)
         {
             return 1;
         }
