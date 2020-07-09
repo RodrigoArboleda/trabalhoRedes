@@ -18,6 +18,12 @@ typedef struct channel_{
     /*Ponteiro para o administrador*/
     char admin_name[50];
 
+    /*se o canal eh apenas para convidados*/
+    int mode_invite_only;
+
+    /*lista de clientes convidados do canal*/
+    sem_t sem_lista_clientes_convidados;
+    LIST *lista_clientes_convidados;
     
 }CHANNEL;
 
@@ -36,7 +42,7 @@ typedef struct list_channel{
 
 }LIST_CHANNEL;
 
-CHANNEL* create_channel(char*name,char*admin_name);
+CHANNEL* create_channel(char*name,char*admin_name,int mode_invite_only);
 
 void delete_channel(CHANNEL*channel);
 

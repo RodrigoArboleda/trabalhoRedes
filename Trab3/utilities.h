@@ -106,4 +106,6 @@ typedef struct client{
 
 int exec_n_segundos(int n, void *(*funcao) (void *),void *param, pthread_mutex_t *mutex_end, pthread_cond_t *cond_end);
 
+void closeSocket(int fd);
+
 #endif

@@ -212,7 +212,7 @@ void disconect(){
     quit[5] = '\0';
     send(sock_server, quit, 6, 0);
 
-    shutdown(sock_server, 1);
+    shutdown(sock_server, SHUT_RDWR);
     sock_server = -1;
     
     printf("Conexão encerrada.\n");
@@ -248,7 +248,8 @@ void disconect_erro(){
         pthread_cancel(thread[1]);
     }
 
-    shutdown(sock_server, 1);
+    shutdown(sock_server, SHUT_RDWR);
+    close(sock_server);
     sock_server = -1;
     
     printf("Conexão encerrada.\n");
@@ -464,6 +465,7 @@ int command(char* buffer){
             else
             {
                 printf("Falha ao se conectar ao servidor\n");
+                return 4;
             }
 
             strcpy(buffer, "/nickname ");
@@ -650,6 +652,32 @@ int command(char* buffer){
     }
 
     else if(strncmp(buffer,"/whois ",7) == 0){
+    
+        if (sock_server < 0)
+        {
+            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
+            return 4;
+        }
+
+        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+        pthread_join(thread[0],  &thread_ret);
+        
+    }
+
+    else if(strncmp(buffer,"/invite ",8) == 0){
+    
+        if (sock_server < 0)
+        {
+            printf("Para usar este comando é preciso estar conectado a um servidor, digite: /connect para se conectar\n");
+            return 4;
+        }
+
+        pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
+        pthread_join(thread[0],  &thread_ret);
+        
+    }
+
+    else if(strncmp(buffer,"/invite_only ",13) == 0){
     
         if (sock_server < 0)
         {
