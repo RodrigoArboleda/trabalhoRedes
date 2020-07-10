@@ -1269,7 +1269,6 @@ int comando(CLIENT* client, char*buffer){
                     }else{
 
                         servidor_send_message_to_client(client,"Nenhum cliente com este nickname encontrado no servidor");
-                        servidor_send_message_to_client(client,"convite enviado com sucesso");
                     }
 
                 }
