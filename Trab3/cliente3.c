@@ -431,6 +431,7 @@ Esta funcao trata caso um comando seja inserido pelo usuario no terminal do irc
             3 - comando desconhecido
             4 - sem conexao estabelecida
             5 - sem retorno do servidor
+            6 - parametro invalidos
 */
 int command(char* buffer){
 
@@ -571,25 +572,38 @@ int command(char* buffer){
 
         FILE* configFile;
         int nick_ok_flag = 1;
-        for (int i = 0; i < 50; i++)
-        {
-            if (buffer[i+10] == 0)
+        char comando[50];
+        char parametro[50];
+        sscanf(buffer,"%s %s",comando,parametro);
+        
+        /*verifica se o nome é um nome reservado*/
+        if (strncmp(parametro, "user", 4) == 0){
+            printf("Nickname reservado\n");
+            return 6;
+        }
+        else
+        {   
+            /*verifica se o nome e valido*/
+            for (int i = 0; i < 50; i++)
             {
-                nickname[i] = buffer[i+10];
-                nick_ok_flag = 0;
-                break;
-            }
-            
-            if (buffer[i+10] > 32 && buffer[i+10] < 127)
-            {
-                nickname[i] = buffer[i+10];
-            }
+                if (buffer[i+10] == 0)
+                {
+                    nickname[i] = buffer[i+10];
+                    nick_ok_flag = 0;
+                    break;
+                }
+                
+                if (buffer[i+10] > 32 && buffer[i+10] < 127)
+                {
+                    nickname[i] = buffer[i+10];
+                }
 
-            else
-            {
-                break;
+                else
+                {
+                    break;
+                }
+                                    
             }
-                                
         }
 
         if (nick_ok_flag)
@@ -599,21 +613,22 @@ int command(char* buffer){
             return 0;
         }
         
-     
+        /*salva localmente o nome*/
         configFile = fopen("usr.cfg", "w+");
         fwrite(nickname, sizeof(char), 50, configFile);
         fclose(configFile);
 
         printf("Nickname alterado nas configurações para:%s\n", nickname);
 
+        /*caso tenha uma conexao ele envia para o servidor o novo nome*/
         if (sock_server > 0)
         {
             pthread_create(&thread[0], NULL, send_mensage, (void*)(buffer));
             pthread_join(thread[0],  &thread_ret);
-            return 4;
+            return 0;
         }
 
-        return 0;
+        return 4;
         
     }
 
@@ -712,8 +727,10 @@ int main(int argc, char *argv[]){
     /*modifica o tratamento do sinal SIGING*/
     signal(SIGINT, stop_client);
 
+    /*Carega o nickname do arquivo*/
     FILE* configFile;
     configFile = fopen("usr.cfg", "r+");
+    /*caso nao tenha um nome no arquivo*/
     if (configFile == NULL)
     {
         int loop = 1;
@@ -728,32 +745,42 @@ int main(int argc, char *argv[]){
             }
 
             else if(strncmp(buffer,"/nickname ",10) == 0){
-                for (int i = 0; i < 50; i++)
-                {
-                    if (buffer[i+10] == 0)
+                char comando[50];
+                char parametro[50];
+                /*verifica se e um nome reservado*/
+                sscanf(buffer,"%s %s",comando,parametro);
+                if (strncmp(parametro, "user", 4) == 0){
+                    printf("Nickname reservado\n");
+                }
+                /*verifica o nome se e valido*/
+                else
+                {                
+                    for (int i = 0; i < 50; i++)
                     {
-                        nickname[i] = buffer[i+10];
-                        loop = 0;
-                        break;
+                        if (buffer[i+10] == 0)
+                        {
+                            nickname[i] = buffer[i+10];
+                            loop = 0;
+                            break;
+                        }
+                        
+                        if (buffer[i+10] > 32 && buffer[i+10] < 127)
+                        {
+                            nickname[i] = buffer[i+10];
+                        }
+
+                        else
+                        {
+                            break;
+                        }
+                                            
                     }
                     
-                    if (buffer[i+10] > 32 && buffer[i+10] < 127)
+                    if (loop == 1)
                     {
-                        nickname[i] = buffer[i+10];
+                        printf("Nickname invalido!\n");
                     }
-
-                    else
-                    {
-                        break;
-                    }
-                                        
                 }
-                
-                if (loop == 1)
-                {
-                    printf("Nickname invalido!\n");
-                }
-                
             }
 
             else if(strcmp(buffer,"/quit") == 0){
