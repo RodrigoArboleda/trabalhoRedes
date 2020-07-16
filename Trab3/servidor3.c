@@ -308,6 +308,7 @@ void *send_menssage_thread(void *param){
         /*enviando a mensagem*/
         int cod_error;
         cod_error = send(client->socket, buffer, MENS_SIZE, 0);
+        client->ack = -1;
         if (cod_error <= 0)
         {
 
@@ -325,8 +326,11 @@ void *send_menssage_thread(void *param){
         /*chamando a receibe_message_aux atraves do exec_n_segundos, para dar timeout nela*/
         /*esperasse um segundo para enviar a mensagem*/
         exec_n_segundos(2,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
+        int client_ack = client->ack;
+        client->ack = 0;
+
         /*verificando se o que foi lido, eh um ack*/
-        if(strcmp(buffer_aux,"<ACK>") == 0){
+        if(strcmp(buffer_aux,"<ACK>") == 0 || client_ack == 1){
             ack = 1;
             break;
 
@@ -952,7 +956,7 @@ int join_channel(CLIENT*client, int flag, char*channel_name, char* mode_invite_o
 
         /*este erro siginifica que esta tentando entrar em um canal de apenas convidados, nao sendo convidado*/
         }else if(err == -3){
-            servidor_send_message_to_client(client,"Canal apenas para convidados. O administrador do canal tem que te convidar para poder entrar no canal.");
+            servidor_send_message_to_client(client,"Canal apenas para convidados. O administrador do canal tem que te convidar para poder entrar no canal.\nVoce esta agora sem nenhum Canal!!");
         }
         else{
             servidor_send_message_to_client(client,"Se juntou ao canal com sucesso");
@@ -1243,10 +1247,11 @@ int comando(CLIENT* client, char*buffer){
                                 sprintf(msg,"%s te enviou um convite para o canal %s",nick,  parametro_channel);
 
                                 servidor_send_message_to_client(client_invited,msg);
+                                servidor_send_message_to_client(client,"convite enviado com sucesso");
                             /*se nao eh o adm do canal, apenas adm pode enviar invites em canais convidados*/
                             }else{
 
-                                servidor_send_message_to_client(client,"Apenas o administrador pode enviar convites neste canal.");
+                                servidor_send_message_to_client(client,"Apenas o administrador pode enviar convites este canal.");
 
                             }
                             /*se o canal eh aberto*/
@@ -1420,9 +1425,19 @@ void *receive_message(void *param){
         /*esperasse um segundo para enviar a mensagem*/
         exec_n_segundos(2,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
         
-        int ret = comando(client,buffer);
-        if(ret == 1){
-            break;
+
+            if(strcmp(buffer, "<ACK>") == 0){
+                if (client->ack == -1)
+                {
+                    client->ack = 1;
+                }
+            }
+            else
+            {
+                int ret = comando(client,buffer);
+                if(ret == 1){
+                    break;
+            }
         }
         
 
@@ -1448,6 +1463,7 @@ CLIENT *create_client(int sock,struct sockaddr_in addr,unsigned int size_addr, c
     cli->socket = sock;
     cli->addr = addr;
     cli->size_addr = size_addr;
+    cli->ack = 0;
     strcpy(cli->nickname,nickname);
 
     cli->connect_status = 1;

@@ -101,6 +101,7 @@ typedef struct client{
     /*se o cliente esta mutado*/
     sem_t sem_muted;
     int muted; 
+    int ack;
 
 } CLIENT;
 
