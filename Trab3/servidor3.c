@@ -3,11 +3,6 @@
 #include "channel.h"
 
 
-/*FALTA
-
-    - verificar se o nome do canal no join eh valido, ver o que eh um nome valido no rfc
-*/
-
 sem_t sem_lista_canais;
 LIST_CHANNEL *lista_canais;
 int num_canais = 0;
@@ -16,9 +11,8 @@ sem_t sem_lista_clientes_sem_canal;
 LIST *lista_clientes_sem_canal;
 int num_cliente_sem_canal;
 
-/*Contam quantos clientes estao conectados no servidor, apenas por questao de controle, nao tem muita utilidade,
-serve so pro comando /num_clientes */
-sem_t sem_num_clientes;
+sem_t sem_lista_clientes_conectados;
+LIST *lista_clientes_conectados;
 int num_clientes;
 
 /*utilizada para tratar o fechamento de canais,*/
@@ -134,9 +128,40 @@ void *disconnect_cli(void *cli_){
     client->connect_status = 0;
     sem_post( &(client->sem_connect_status) );
 
-    /*removendo do canal ou da lista de clientes sem canal, caso nao esteja e um canal
-    usa a shutdown_server_flag para lidar com a questao se deve ou nao enviar mensagens*/
-    client_quit_channel(client,shutdown_server_flag);  
+    /*removendo este clientes das listas de clientes convidados dos canais que convidaram este cliente*/
+    sem_wait(&(client->sem_nickname));
+    char nickname[50];
+    strcpy(nickname,client->nickname);
+    sem_post(&(client->sem_nickname));
+
+    sem_wait(&(sem_lista_canais));
+
+    NO *no = lista_canais->ini;
+    while(no != NULL){
+
+        CHANNEL* channel = no->channel;
+
+        sem_wait( &(channel->sem_lista_clientes_convidados) );
+        remove_list(channel->lista_clientes_convidados, nickname);
+        sem_post( &(channel->sem_lista_clientes_convidados) );
+        no = no->next;
+    }
+    sem_post(&(sem_lista_canais));
+    /*removendo do canal ou da lista de clientes sem canal*/
+    /*caso estejamos dando shutdown no server, nao precisamos remover, pois a funcao shutdown_server lida com isto
+    shutdown_server_flag == 0 significa que NAO estamos dando shutdown no server*/
+    if(shutdown_server_flag == 0)
+        client_quit_channel(client,shutdown_server_flag);  
+
+    /*removendo da lista de clientes conectados*/
+    sem_wait(&(sem_lista_clientes_conectados));
+    sem_wait(&(client->sem_nickname));
+    
+    remove_list(lista_clientes_conectados, client->nickname);
+    num_clientes--;
+
+    sem_post(&(client->sem_nickname));
+    sem_post(&(sem_lista_clientes_conectados));
     
     sem_wait( &(client->sem_read) );
     sem_post( &(client->sem_read) );
@@ -167,10 +192,7 @@ void *disconnect_cli(void *cli_){
     sem_destroy(&(client->sem_sending_msg));
     sem_destroy(&(client->sem_nickname));
 
-    shutdown(client->socket, 1);
-
-    
-
+    close(client->socket);
     free(client);
 
     client = NULL;
@@ -286,6 +308,7 @@ void *send_menssage_thread(void *param){
         /*enviando a mensagem*/
         int cod_error;
         cod_error = send(client->socket, buffer, MENS_SIZE, 0);
+        client->ack = -1;
         if (cod_error <= 0)
         {
 
@@ -302,9 +325,12 @@ void *send_menssage_thread(void *param){
         recv_msg.client = client;
         /*chamando a receibe_message_aux atraves do exec_n_segundos, para dar timeout nela*/
         /*esperasse um segundo para enviar a mensagem*/
-        exec_n_segundos(1,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
+        exec_n_segundos(2,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
+        int client_ack = client->ack;
+        client->ack = 0;
+
         /*verificando se o que foi lido, eh um ack*/
-        if(strcmp(buffer_aux,"<ACK>") == 0){
+        if(strcmp(buffer_aux,"<ACK>") == 0 || client_ack == 1){
             ack = 1;
             break;
 
@@ -318,8 +344,15 @@ void *send_menssage_thread(void *param){
             /*por nao ter lido o ack por causa de ter lido outra mensagem antes, o cliente pode ainda ter mandado o ack,
             entao tenta recebelo denovo*/
             recv_msg.message[0] = '\0';
+
             exec_n_segundos(1,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
 
+            if(strcmp(buffer_aux,"<ACK>") == 0){
+                ack = 1;
+                break;
+
+            
+            }
 
         }
 
@@ -347,7 +380,7 @@ void *send_menssage_thread(void *param){
     o else eh porque nao faz sentido mandar mensagem de um cliente desconectado*/
     else if(have_msg){
 
-        send_message(client,buffer_msg);
+        comando(client,buffer_msg);
     }
 
 
@@ -563,57 +596,54 @@ int client_change_name(CLIENT*client, char* nickname_atual, char*novo_nickname){
                 
     CLIENT *cli_exist = NULL;
     CHANNEL *channel = (CHANNEL*)client->channel;
-    /*Se o cliente esta sem canal*/
-    if(client->channel == NULL){
-        sem_wait( &(sem_lista_clientes_sem_canal) );
-    
-        cli_exist = list_get_client_by_name(lista_clientes_sem_canal, novo_nickname);
-        /*nao existe um cliente com este nickname ainda*/
-        
-        if(cli_exist == NULL){
 
-            sem_wait( &(client->sem_nickname) );
-            strcpy(client->nickname,novo_nickname);
+    sem_wait( &(sem_lista_clientes_conectados) );
+    cli_exist = list_get_client_by_name(lista_clientes_conectados,novo_nickname);
+    sem_post( &(sem_lista_clientes_conectados) );
+    /*se o nickname esta livre*/
+    if(cli_exist == NULL){
+
+        /*pegando o semaforo certo, pois precisamos de um na hora de mudar o nickname do usuario*/    
+        if(channel == NULL){
+            /*se o usuario nao tem canal, reserva o semaforo de lista de clientes sem canal*/
+            sem_wait( &(sem_lista_clientes_sem_canal) );
+        }else{
+            /*se o usuario tem canal, reserva o semoforo da lista de clientes do canal*/
+            sem_wait( &(channel->sem_lista_clientes) );
+        }
+
+        int is_adm = 0;
+        /*vendo se eh o adm do canal, pois deve se mudar channel->admin_name caso for*/
+        if(channel != NULL){
+            is_adm = client_is_adm(client,0);
+        }
+
+        /*mudando o nickname*/
+        sem_wait( &(client->sem_nickname) );
+
+        strcpy(client->nickname,novo_nickname);
+        /*se eh o adm do canal, tbm mudar o nickname dele na struct canal*/
+        if(channel != NULL && is_adm){
             
-            sem_post( &(client->sem_nickname) );
-        }else{
-
-            char message[4096];
-            sprintf(message,"Ja existe alguem com este nickname sem canal. Seu nome atual: %s.", nickname_atual);
-            servidor_send_message_to_client(client,message);
-            /*
-            servidor_send_message_to_client(client,"Ja existe alguem com este nickname sem canal.");
-            */
+            strcpy(channel->admin_name,novo_nickname);
         }
-        
-        sem_post( &(sem_lista_clientes_sem_canal) );
-    }
-    /*Se o cliente esta em um canal*/
-    else{
-        /*pesquisando na lista de clientes no canal um cliente com o nickname que deseja*/
-        sem_wait( &(channel->sem_lista_clientes) );
-        cli_exist = list_get_client_by_name(channel->lista_clientes, novo_nickname);
-        /*nao existe um cliente com este nickname ainda*/
-        if(cli_exist == NULL){
 
-            int is_adm = client_is_adm(client, 0);
-            sem_wait( &(client->sem_nickname) );
-            strcpy(client->nickname,novo_nickname);
-            /*se eh o adm do canal, tbm mudar o nickname dele na struct canal*/
-            if(is_adm){
-                strcpy(channel->admin_name,novo_nickname);
-            }
-            sem_post( &(client->sem_nickname) );
+        sem_post( &(client->sem_nickname) );
+
+        /*liberando o semaforo reservado no começo deste bloco*/
+        if(channel == NULL){
+            sem_post( &(sem_lista_clientes_sem_canal) );
         }else{
-            char message[4096];
-            sprintf(message,"Ja existe alguem com este nickname no canal em que esta. Seu nome atual: %s.", nickname_atual);
-            servidor_send_message_to_client(client,message);
-            /*
-            servidor_send_message_to_client(client,"Ja existe alguem com este nickname no canal em que esta.");
-            */
+            sem_post( &(channel->sem_lista_clientes) );
         }
-        sem_post( &(channel->sem_lista_clientes) );
+
+    /*se ja tem alguem utilizando o nickname para o qual o usuario quer mudar*/
+    }else{
+        char message[4096];
+        sprintf(message,"Ja existe alguem com este nickname no servidor. Seu nome atual: %s.", nickname_atual);
+        servidor_send_message_to_client(client,message);
     }
+
     /*enviando mensagem de confirmacao de operacao bem sucedida, 
     e avisando os outros clientes do canal que este cliente mudou de nome*/
     if(cli_exist == NULL){
@@ -663,6 +693,10 @@ void channel_kick(CHANNEL*channel,CLIENT*admin,char*nickname_kick){
         /*incrementando o numero de usuarios conectados*/
         num_cliente_sem_canal++;
         sem_post( &(sem_lista_clientes_sem_canal) );
+
+        sem_wait(&(to_remove->sem_muted));
+        to_remove->muted = 0;
+        sem_post(&(to_remove->sem_muted));
 
         /*avisando o administrador e o cliente removido que se foi removido com sucesso*/
         servidor_send_message_to_client(admin,"Cliente removido com sucesso.");
@@ -750,7 +784,7 @@ void client_quit_channel(CLIENT*client,int flag){
                         CLIENT*cli_no = no->client_ele;
 
                         char message_adm[4096];
-                        sprintf(message_adm,"%s eh o novo administrador do canal.",nickname);
+                        sprintf(message_adm,"%s eh o novo administrador do canal.",adm_nick);
                         servidor_send_message_to_client(cli_no,message_adm);
 
                         no = no->next;
@@ -795,10 +829,20 @@ void client_quit_channel(CLIENT*client,int flag){
 int check_channel_name(char *channel_name){
 
     int i;
-    for ( i = 0; i < strlen(channel_name); i++)
+
+    if(channel_name == NULL || strlen(channel_name) == 0)
+        return 1;
+
+    if (channel_name[0] != 38 && channel_name[0] != 35)
+    {
+        return 1;
+    }
+    
+
+    for ( i = 1; i < strlen(channel_name); i++)
     {
         /*32 = ' ' 44 = ','*/
-        if (channel_name[i] == 32 || channel_name[i] == 44)
+        if (channel_name[i] == 32 || channel_name[i] == 44 || channel_name[i] == 7)
         {
             return 1;
         }
@@ -815,10 +859,11 @@ int check_channel_name(char *channel_name){
         0 - entrasse em um canal
         1 - eh colocado na lista de clientes sem canal
     char*channel_name - caso for entrar em um canal, especificar o seu nomes
+    char*mode_invite_only - se o usuario quer criar um canal que eh somente por invite, o valor desta string deve ser "+i"
 @RETORNO
     - 0 caso operacao em sucedida, -1 caso contrario
 */
-int join_channel(CLIENT*client, int flag, char*channel_name){
+int join_channel(CLIENT*client, int flag, char*channel_name, char* mode_invite_only){
     if(client == NULL)
         return -1;
 
@@ -860,18 +905,28 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
         sem_wait(&(sem_lista_canais));
         novo_channel = list_get_channel_by_name(lista_canais,channel_name);
         int is_adm = 0;
-        /*nao existe o canal ainda*/
+        /*nao existe o canal ainda, vamos criar o canal*/
         if(novo_channel == NULL){
             /*ainda deve se inserir o cliente no canal*/
-            novo_channel = create_channel(channel_name,nickname);
+            int invite_only = 0;
+            if(strcmp(mode_invite_only,"+i") == 0){
+                invite_only = 1;
+                printf("eh de convidao em\n");
+            }
+                
+
+            novo_channel = create_channel(channel_name,nickname,invite_only);
             list_insert_channel(lista_canais,novo_channel);
             is_adm = 1;
         }
-        client->channel = (void*)novo_channel;
+
         sem_post(&(sem_lista_canais));
 
         /*inserindo o cliente  no canal*/
         int err = channel_insert_client(novo_channel,client);
+        if(err != -3){
+            client->channel = (void*)novo_channel;
+        }
 
         /*caso nao se conseguiu entrar no canal, pois ha outro cliente com o mesmo nickname no canal*/
         if(err == -2){
@@ -894,19 +949,24 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
             sprintf(message,"Seu nickname foi mudado para %s, pois ja existe um cliente com o nickname %s neste canal",standand_nickname,nickname);
             servidor_send_message_to_client(client,message);
 
+        
         }
         if(is_adm){
             servidor_send_message_to_client(client,"Canal criado com Sucesso, voce eh o administrador do canal");
+
+        /*este erro siginifica que esta tentando entrar em um canal de apenas convidados, nao sendo convidado*/
+        }else if(err == -3){
+            servidor_send_message_to_client(client,"Canal apenas para convidados. O administrador do canal tem que te convidar para poder entrar no canal.\nVoce esta agora sem nenhum Canal!!");
         }
         else{
             servidor_send_message_to_client(client,"Se juntou ao canal com sucesso");
-        }
-        /*avisando os outros do canal que o client entrou*/
-        char message_c[4096];
-        sem_wait(&(client->sem_nickname));
-        sprintf(message_c,"entrou no canal.");
-        sem_post(&(client->sem_nickname));
-        send_message(client,message_c);
+            /*avisando os outros do canal que o client entrou*/
+            char message_c[4096];
+            sem_wait(&(client->sem_nickname));
+            sprintf(message_c,"entrou no canal.");
+            sem_post(&(client->sem_nickname));
+            send_message(client,message_c);
+        }       
                     
 
 
@@ -922,6 +982,407 @@ int join_channel(CLIENT*client, int flag, char*channel_name){
         sem_post( &(sem_lista_clientes_sem_canal) );
 
         servidor_send_message_to_client(client,"Voce esta agora sem nenhum Canal!!");
+
+    }
+
+    return 0;
+}
+
+/*Esta funcao lida com uma mensagem recebida de um cliente, vendo se eh um comando ou uma mensagem e fazendo seu tratamento adequado
+de acordo
+@PARAMETROS
+    CLIENT* client - o cliente ao qual recebemos uma mensagem
+    char* buffer - a mensagem que o cliente enviou
+@RETORNO
+    int - indica se o bloco que chamou a funcao saber se eh para continuar rodando ou parar por o comando dado
+    ser de o cliente disconectar
+    valores possiveis:
+        0 - indica para continua a execucao
+        1 - indica para fechar a execucao por o cliente disconectar, usado somente na funcao receive_message
+*/
+int comando(CLIENT* client, char*buffer){
+
+    sem_wait( &(client->sem_nickname) );
+    char nickname[50];
+    strcpy(nickname,client->nickname);
+    sem_post( &(client->sem_nickname) );
+
+    sem_post( &(client->sem_read) );
+
+    if( strlen(buffer) > 0 ){
+
+        printf("Mensagem \"%s\" recebida de %s.\n",buffer,nickname);
+        /*se for um PING, responde PONG*/
+        if(strcmp(buffer,"/ping") == 0){
+            char pong[5] = {0};
+            strcpy(pong,"PONG");
+                
+            send(client->socket, pong, 4, 0);
+
+
+            printf("Ping recebido de %s.\n",nickname);
+        }
+        /*se for um quit, desconecta o client*/
+        else if(strcmp(buffer,"/quit") == 0){
+
+            pthread_t disconect;
+            pthread_create(&(disconect), NULL, disconnect_cli, (void*)(client));
+            printf("Cliente %s desconectando.\n",nickname);    
+            wait(500000);
+
+            return 1;
+        }
+        /*Conectando este cliente a um novo canal*/
+        else if(strncmp(buffer,"/join ",6) == 0){
+
+            char ack[5] = {0};
+            strcpy(ack,"ACK");
+                
+            send(client->socket, ack, 4, 0);
+
+            char comando[10];
+            char parametro[51];
+            parametro[0] = '\0';
+                
+            char parametro_invite_only[50];
+            parametro_invite_only[0] = '\0';
+            sscanf( buffer,"%s %s %s",comando,parametro,parametro_invite_only );
+            parametro[50] = '\0';
+
+            /*verificando se os parametros estao corretos*/
+            if(strlen(parametro) == 0){
+                servidor_send_message_to_client(client,"Parametros invalidos");
+                return 0;
+            }else if(strlen(parametro_invite_only) != 0 && strcmp(parametro_invite_only,"+i") != 0){
+                servidor_send_message_to_client(client,"Parametros invalidos");
+                return 0;
+            }
+
+            join_channel(client, 0, parametro,parametro_invite_only);
+                
+        }
+        /*Retirando o cliente do canal*/
+        else if(strncmp(buffer,"/unjoin ",6) == 0){
+
+            char ack[5] = {0};
+            strcpy(ack,"ACK");
+                
+            send(client->socket, ack, 4, 0);
+
+            char comando[10];
+            char parametro[51];
+            sscanf( buffer,"%s %s",comando,parametro );
+            parametro[50] = '\0';
+            join_channel(client, 1, NULL,NULL);
+                
+        }
+        /*Tentando mudar o apelido do cliente*/
+        else if(strncmp(buffer,"/nickname ",10) == 0){
+            /*tratando o buffer, separando o comando de seu parametro*/
+            char comando[10];
+            char parametro[51];
+            sscanf( buffer,"%s %s",comando,parametro );
+            parametro[50] = '\0';
+            char ack[5] = {0};
+            strcpy(ack,"ACK");
+                
+            send(client->socket, ack, 4, 0);
+            /*verificando se os parametros estao corretos*/
+            if(strlen(parametro) == 0){
+                servidor_send_message_to_client(client,"Parametros invalidos");
+                return 0;
+            }
+            client_change_name(client, nickname, parametro);
+
+        }
+        /*A partir daqui sao comandos de adm*/
+        /*Remove um usuario do canal, */
+        else if(strncmp(buffer,"/kick ",6) == 0){
+
+            char ack[5] = {0};
+            strcpy(ack,"ACK");
+                
+            send(client->socket, ack, 4, 0);
+            /*tratando o buffer, separando o comando de seu parametro*/
+            char comando[10];
+            char parametro[51];
+            sscanf( buffer,"%s %s",comando,parametro );
+            parametro[50] = '\0';
+            /*verificando se os parametros estao corretos*/
+            if(strlen(parametro) == 0){
+                servidor_send_message_to_client(client,"Parametros invalidos");
+                return 0;
+            }
+
+            /*verificando se este usuario eh o administrador do canal*/
+            CHANNEL*channel = (CHANNEL*)client->channel;
+            int is_adm = client_is_adm(client, 1);
+
+            if(is_adm){
+                channel_kick(channel,client,parametro);
+            }
+                
+        }
+        /*muta um cliente*/
+        else if(strncmp(buffer,"/mute ",6) == 0){
+
+            char ack[5] = {0};
+            strcpy(ack,"ACK");
+                
+            send(client->socket, ack, 4, 0);
+            /*tratando o buffer, separando o comando de seu parametro*/
+            char comando[10];
+            char parametro[51];
+            sscanf( buffer,"%s %s",comando,parametro );
+            parametro[50] = '\0';
+            /*verificando se os parametros estao corretos*/
+            if(strlen(parametro) == 0){
+                servidor_send_message_to_client(client,"Parametros invalidos");
+                return 0;
+            }
+
+            /*verificando se este usuario eh o administrador do canal*/
+            CHANNEL*channel = (CHANNEL*)client->channel;
+            int is_adm = client_is_adm(client, 1);
+                
+
+            if( is_adm ){
+                /*chamando a funcao para mutar o cliente passado como parametro*/
+                mute_client(channel,client,parametro,1);
+            }
+        }
+        /*desmuta um cliente*/
+        else if(strncmp(buffer,"/unmute ",8) == 0){
+
+            char ack[5] = {0};
+            strcpy(ack,"ACK");
+                
+            send(client->socket, ack, 4, 0);
+
+            /*tratando o buffer, separando o comando de seu parametro*/
+            char comando[10];
+            char parametro[51];
+            sscanf( buffer,"%s %s",comando,parametro );
+            parametro[50] = '\0';
+            /*verificando se os parametros estao corretos*/
+            if(strlen(parametro) == 0){
+                servidor_send_message_to_client(client,"Parametros invalidos");
+                return 0;
+            }
+
+            /*verificando se este usuario eh o administrador do canal*/
+            CHANNEL*channel = (CHANNEL*)client->channel;
+
+            int is_adm = client_is_adm(client, 1);
+
+            if( is_adm ){
+                /*chamando a funcao para desmutar o cliente passado como parametro*/
+                mute_client(channel,client,parametro,0);
+            }
+        }
+        /*invita um cliente*/
+        else if(strncmp(buffer,"/invite ",8) == 0){
+
+            char ack[5] = {0};
+            strcpy(ack,"ACK");
+                
+            send(client->socket, ack, 4, 0);
+
+            /*tratando o buffer, separando o comando de seu parametro*/
+            char comando[10];
+            char parametro_name[51];
+            char parametro_channel[51];
+            parametro_channel[0] = '\0';
+            parametro_name[0] = '\0';
+            sscanf( buffer,"%s %s %s",comando,parametro_name,parametro_channel );
+            parametro_channel[50] = '\0';
+            parametro_name[50] = '\0';
+
+            if(strlen(parametro_name) == 0 || strlen(parametro_channel)== 0 ){
+                servidor_send_message_to_client(client,"Faltando parametros no comando");
+                return 0;
+            }
+            else{
+                /*buscando se o cliente e o canal passados como parametro existem*/
+                sem_wait( &(sem_lista_clientes_conectados) );
+                CLIENT* client_invited = list_get_client_by_name(lista_clientes_conectados,parametro_name);
+                sem_post( &(sem_lista_clientes_conectados) );
+
+                sem_wait( &(sem_lista_canais) );
+                CHANNEL* channel_invited = list_get_channel_by_name(lista_canais,parametro_channel);
+                sem_post( &(sem_lista_canais) );
+
+                /*canal que o cliente que esta invitando esta*/
+                CHANNEL* channel = client->channel;
+
+                sem_wait(&(client->sem_nickname));
+                char nick[50];
+                strcpy(nick, client->nickname);
+                sem_post(&(client->sem_nickname));
+
+                /*se existe um cliente*/
+                if(client_invited != NULL){
+
+                    if(channel_invited != NULL){
+
+                        sem_wait( &(channel_invited->sem_lista_clientes_convidados) );
+                        int invite_only = channel_invited->mode_invite_only;
+                        sem_post( &(channel_invited->sem_lista_clientes_convidados) );
+
+                        if(invite_only){
+                            int is_adm = client_is_adm(client, 0);
+                            /*flag para verificar se o canal em que ele esta eh o canal ao qual esta invitando*/
+                            int same_channel_invite = 0;
+
+                            if(channel != NULL && strcmp(channel->name,parametro_channel) == 0)
+                                same_channel_invite = 1;
+                                
+                            if(is_adm && same_channel_invite){
+                                /*adicionando a lista de clientes convidados ao canal*/
+                                sem_wait( &(channel_invited->sem_lista_clientes_convidados) );
+                                insert_list(channel_invited->lista_clientes_convidados, client_invited);
+                                sem_post( &(channel_invited->sem_lista_clientes_convidados) );
+
+                                char msg[4096];
+                                sprintf(msg,"%s te enviou um convite para o canal %s",nick,  parametro_channel);
+
+                                servidor_send_message_to_client(client_invited,msg);
+                                servidor_send_message_to_client(client,"convite enviado com sucesso");
+                            /*se nao eh o adm do canal, apenas adm pode enviar invites em canais convidados*/
+                            }else{
+
+                                servidor_send_message_to_client(client,"Apenas o administrador pode enviar convites este canal.");
+
+                            }
+                            /*se o canal eh aberto*/
+                            }else{
+                                char msg[4096];
+                                sprintf(msg,"%s te enviou um convite para o canal %s",nick,  parametro_channel);
+
+                                servidor_send_message_to_client(client_invited,msg);
+                                servidor_send_message_to_client(client,"convite enviado com sucesso");
+                            }
+                        /*se o canal nao existe ainda*/
+                        }else{
+                            char msg[4096];
+                            sprintf(msg,"%s te enviou um convite para o canal %s",nick,  parametro_channel);
+
+                            servidor_send_message_to_client(client_invited,msg);
+                            servidor_send_message_to_client(client,"convite enviado com sucesso");
+                        }
+
+                    }else{
+
+                        servidor_send_message_to_client(client,"Nenhum cliente com este nickname encontrado no servidor");
+                    }
+
+                }
+
+            }
+            /*muda a configuracao do canal para ser invite_only ou nao*/
+            else if(strncmp(buffer,"/invite_only ",13) == 0){
+
+                char ack[5] = {0};
+                strcpy(ack,"ACK");
+                
+                send(client->socket, ack, 4, 0);
+
+                /*tratando o buffer, separando o comando de seu parametro*/
+                char comando[10];
+                char parametro[51];
+                sscanf( buffer,"%s %s",comando,parametro );
+                parametro[50] = '\0';
+                /*verificando se os parametros estao corretos*/
+                if(strlen(parametro) == 0){
+                    servidor_send_message_to_client(client,"Parametros invalidos");
+                    return 0;
+                }else if(strcmp(parametro,"True") != 0 && strcmp(parametro,"False") != 0){
+                    servidor_send_message_to_client(client,"Parametros invalidos");
+                    return 0;
+                }
+                /*verificando se este usuario eh o administrador do canal*/
+                CHANNEL*channel = (CHANNEL*)client->channel;
+
+                int is_adm = client_is_adm(client, 1);
+
+                if( is_adm ){
+
+                    int invite_only = -1;
+
+                    if(strcmp(parametro,"True") == 0)
+                        invite_only = 1;
+                    
+                    if(strcmp(parametro,"False") == 0)
+                        invite_only = 0;
+
+                    if(invite_only == 1 || invite_only == 0){
+                        sem_wait( &(channel->sem_lista_clientes_convidados) );
+
+                        channel->mode_invite_only = invite_only;
+                        sem_post( &(channel->sem_lista_clientes_convidados) );
+                    }
+
+                    if(invite_only == 0){
+                        servidor_send_message_to_client(client,"As configuracoes do canal foram alteradas para qualquer usuario poder entrar.");
+                    }else if(invite_only == 1){
+                        servidor_send_message_to_client(client,"As configuracoes do canal foram alteradas para apenas aceitar usuarios convidados.");
+                    }else{
+                        servidor_send_message_to_client(client,"Parametro Passado Invalido, este comando so aceita os valores \"True\" ou \"False\".");
+                    }
+                    
+                }
+            }
+            /*retorna o ip do cara especificado*/
+            else if(strncmp(buffer,"/whois ",7) == 0){
+                char ack[5] = {0};
+                strcpy(ack,"ACK");
+                
+                send(client->socket, ack, 4, 0);
+                
+                /*tratando o buffer, separando o comando de seu parametro*/
+                char comando[10];
+                char parametro[51];
+                sscanf( buffer,"%s %s",comando,parametro );
+                parametro[50] = '\0';
+                /*verificando se os parametros estao corretos*/
+                if(strlen(parametro) == 0){
+                    servidor_send_message_to_client(client,"Parametros invalidos");
+                    return 0;
+                }
+
+                /*verificando se este usuario eh o administrador do canal*/
+                CHANNEL*channel = (CHANNEL*)client->channel;
+                int is_adm = client_is_adm(client, 1);
+
+                if( is_adm ){
+                    /*pesquisando na lista de clientes no canal um cliente com o nickname passado no parametro*/
+                    sem_wait( &(channel->sem_lista_clientes) );
+                    CLIENT* cli_whois = list_get_client_by_name(channel->lista_clientes, parametro);
+                    sem_post( &(channel->sem_lista_clientes) );
+                    /*se achou um cliente*/
+                if(cli_whois != NULL){
+                    /*pegando ip do cliente achado*/
+                    char ip[20];
+                    byte_to_string_ip_adress(ip,cli_whois->addr.sin_addr.s_addr);
+                    /*enviando o ip do cliente achado ao adm*/
+                    char message[4096];
+                    sprintf(message,"O IP de %s eh %s.",parametro,ip);
+                    servidor_send_message_to_client(client,message);
+                }else{
+                    servidor_send_message_to_client(client,"Nao foi achado um cliente com o nickname passado");
+                }
+            }
+        }
+        /*mensagem normal, retorna o ACK, e envia a mensagem aos outros clients.*/
+        else{
+            char ack[5] = {0};
+            strcpy(ack,"ACK");
+                
+            send(client->socket, ack, 4, 0);
+
+            send_message(client, buffer);           
+                
+        }
 
     }
 
@@ -963,191 +1424,22 @@ void *receive_message(void *param){
         /*chamando a receibe_message_aux atraves do exec_n_segundos, para dar timeout nela*/
         /*esperasse um segundo para enviar a mensagem*/
         exec_n_segundos(2,receive_message_aux,&recv_msg,&(client->mutex),&(client->cond));
-        /*verificando se o que foi lido, eh um ack*/
+        
 
-        sem_wait( &(client->sem_nickname) );
-        char nickname[50];
-        strcpy(nickname,client->nickname);
-        sem_post( &(client->sem_nickname) );
-
-        sem_post( &(client->sem_read) );
-
-        if( strlen(buffer) > 0 ){
-
-            printf("Mensagem \"%s\" recebida de %s.\n",buffer,nickname);
-            /*se for um PING, responde PONG*/
-            if(strcmp(buffer,"/ping") == 0){
-                char pong[5] = {0};
-                strcpy(pong,"PONG");
-                
-                send(client->socket, pong, 4, 0);
-
-
-                printf("Ping recebido de %s.\n",nickname);
-            }
-            /*se for um quit, desconecta o client*/
-            else if(strcmp(buffer,"/quit") == 0){
-
-                pthread_t disconect;
-                pthread_create(&(disconect), NULL, disconnect_cli, (void*)(client));
-                printf("Cliente %s desconectando.\n",nickname);    
-                wait(500000);
-
-                break;
-            }
-            /*Conectando este cliente a um novo canal*/
-            else if(strncmp(buffer,"/join ",6) == 0){
-
-                char ack[5] = {0};
-                strcpy(ack,"ACK");
-                
-                send(client->socket, ack, 4, 0);
-
-                char comando[10];
-                char parametro[50];
-                sscanf( buffer,"%s %s",comando,parametro );
-                
-                join_channel(client, 0, parametro);
-                
-            }
-            /*Retirando o cliente do canal*/
-            else if(strncmp(buffer,"/unjoin ",6) == 0){
-
-                char ack[5] = {0};
-                strcpy(ack,"ACK");
-                
-                send(client->socket, ack, 4, 0);
-
-                char comando[10];
-                char parametro[50];
-                sscanf( buffer,"%s %s",comando,parametro );
-                
-                join_channel(client, 1, NULL);
-                
-            }
-            /*Tentando mudar o apelido do cliente*/
-            else if(strncmp(buffer,"/nickname ",10) == 0){
-                /*tratando o buffer, separando o comando de seu parametro*/
-                char comando[10];
-                char parametro[50];
-                sscanf( buffer,"%s %s",comando,parametro );
-
-                char ack[5] = {0};
-                strcpy(ack,"ACK");
-                
-                send(client->socket, ack, 4, 0);
-
-                client_change_name(client, nickname, parametro);
-
-            }
-            /*A partir daqui sao comandos de adm*/
-            /*Remove um usuario do canal, */
-            else if(strncmp(buffer,"/kick ",6) == 0){
-
-                char ack[5] = {0};
-                strcpy(ack,"ACK");
-                
-                send(client->socket, ack, 4, 0);
-                /*tratando o buffer, separando o comando de seu parametro*/
-                char comando[10];
-                char parametro[50];
-                sscanf( buffer,"%s %s",comando,parametro );
-                /*verificando se este usuario eh o administrador do canal*/
-                CHANNEL*channel = (CHANNEL*)client->channel;
-                int is_adm = client_is_adm(client, 1);
-
-                if(is_adm){
-                    channel_kick(channel,client,parametro);
-                }
-                
-            }
-            /**/
-            else if(strncmp(buffer,"/mute ",6) == 0){
-
-                char ack[5] = {0};
-                strcpy(ack,"ACK");
-                
-                send(client->socket, ack, 4, 0);
-                /*tratando o buffer, separando o comando de seu parametro*/
-                char comando[10];
-                char parametro[50];
-                sscanf( buffer,"%s %s",comando,parametro );
-                /*verificando se este usuario eh o administrador do canal*/
-                CHANNEL*channel = (CHANNEL*)client->channel;
-                int is_adm = client_is_adm(client, 1);
-                
-
-                if( is_adm ){
-                    /*chamando a funcao para mutar o cliente passado como parametro*/
-                    mute_client(channel,client,parametro,1);
+            if(strcmp(buffer, "<ACK>") == 0){
+                if (client->ack == -1)
+                {
+                    client->ack = 1;
                 }
             }
-            else if(strncmp(buffer,"/unmute ",8) == 0){
-
-                char ack[5] = {0};
-                strcpy(ack,"ACK");
-                
-                send(client->socket, ack, 4, 0);
-
-                /*tratando o buffer, separando o comando de seu parametro*/
-                char comando[10];
-                char parametro[50];
-                sscanf( buffer,"%s %s",comando,parametro );
-                /*verificando se este usuario eh o administrador do canal*/
-                CHANNEL*channel = (CHANNEL*)client->channel;
-
-                int is_adm = client_is_adm(client, 1);
-
-                if( is_adm ){
-                    /*chamando a funcao para desmutar o cliente passado como parametro*/
-                    mute_client(channel,client,parametro,0);
-                }
+            else
+            {
+                int ret = comando(client,buffer);
+                if(ret == 1){
+                    break;
             }
-            else if(strncmp(buffer,"/whois ",7) == 0){
-                char ack[5] = {0};
-                strcpy(ack,"ACK");
-                
-                send(client->socket, ack, 4, 0);
-                
-                /*tratando o buffer, separando o comando de seu parametro*/
-                char comando[10];
-                char parametro[50];
-                sscanf( buffer,"%s %s",comando,parametro );
-                /*verificando se este usuario eh o administrador do canal*/
-                CHANNEL*channel = (CHANNEL*)client->channel;
-                int is_adm = client_is_adm(client, 1);
-
-                if( is_adm ){
-                    /*pesquisando na lista de clientes no canal um cliente com o nickname passado no parametro*/
-                    sem_wait( &(channel->sem_lista_clientes) );
-                    CLIENT* cli_muted = list_get_client_by_name(channel->lista_clientes, parametro);
-                    sem_post( &(channel->sem_lista_clientes) );
-                    /*se achou um cliente*/
-                    if(cli_muted != NULL){
-                        /*pegando ip do cliente achado*/
-                        char ip[20];
-                        byte_to_string_ip_adress(ip,cli_muted->addr.sin_addr.s_addr);
-                        /*enviando o ip do cliente achado ao adm*/
-                        char message[4096];
-                        sprintf(message,"O IP de %s eh %s.",parametro,ip);
-                        servidor_send_message_to_client(client,message);
-                    }else{
-                        servidor_send_message_to_client(client,"Nao foi achado um cliente com o nickname passado");
-                    }
-                }
-            }
-            /*mensagem normal, retorna o ACK, e envia a mensagem aos outros clients.*/
-            else{
-                char ack[5] = {0};
-                strcpy(ack,"ACK");
-                
-                send(client->socket, ack, 4, 0);
-
-                send_message(client, buffer);           
-                
-            }
-
         }
+        
 
         wait(50000);
     }
@@ -1171,6 +1463,7 @@ CLIENT *create_client(int sock,struct sockaddr_in addr,unsigned int size_addr, c
     cli->socket = sock;
     cli->addr = addr;
     cli->size_addr = size_addr;
+    cli->ack = 0;
     strcpy(cli->nickname,nickname);
 
     cli->connect_status = 1;
@@ -1208,10 +1501,11 @@ void* conecta_cliente(void *param){
 
         /*recebendo os clientes que estao se conectando.*/
         int sock_client;
-        unsigned int size_client_addr;
+        unsigned int size_client_addr = sizeof(struct sockaddr_in);
         struct sockaddr_in addrclient;
         /*Esperando conecção de um cliente*/
         sock_client = accept(sock_task, (struct sockaddr *)&addrclient, &size_client_addr);
+
         if(sock_client < 0){
             printf("ERRO ao tentar conectar um cliente.\n");
             continue;
@@ -1232,20 +1526,23 @@ void* conecta_cliente(void *param){
         /*Criando a struct CLIENT e o adicionando a lista de clientes*/
         CLIENT*new = create_client(sock_client,addrclient,size_client_addr, standand_nickname);
         
-        /*inserindo na lista de clientes.*/
+        /*inserindo na lista de clientes sem canal.*/
         sem_wait( &(sem_lista_clientes_sem_canal) );
         insert_list(lista_clientes_sem_canal, new);
         /*incrementando o numero de usuarios conectados*/
         num_cliente_sem_canal++;
         sem_post( &(sem_lista_clientes_sem_canal) );
 
-        sem_wait(&(sem_num_clientes));
+        /*insrerindo na lista de clientes*/
+        sem_wait(&(sem_lista_clientes_conectados));
+        insert_list(lista_clientes_conectados, new);
         num_clientes++;
-        sem_post(&(sem_num_clientes));
+        sem_post(&(sem_lista_clientes_conectados));
         
         /*
         sprintf(message,"Foi lhe atributo o nickname %s.",standand_nickname);
         */
+
         servidor_send_message_to_client(new,"Bem-vindo ao servidor!");
         
 
@@ -1253,76 +1550,6 @@ void* conecta_cliente(void *param){
     }
 }
 
-/*Esta funcao nao remove o canal da lista de canais, deve se tirar o canal da lista antes de chamar esta funcao caso nao esteja 
-dando shutdown no servidor todo.
-Esta função tem o proposito de remover um canal que ja foi retirado da lista de canais, podendo se escolher o que acontece
-com os clientes que estao no canal atraves da flag
-@PARAMETROS
-    - CHANNEL* channel - canal a ser deletado
-    - int flag - valores possiveis:
-        0 - coloca os clientes que estao no canal na lista de clientes sem canal
-        1 - desconecta os clientes que estao no canal do servidor
-*/
-void shutdown_channel(CHANNEL* channel, int flag){
-
-    if(flag != 0 && flag != 1){
-        return;
-    }
-
-    if(channel == NULL){
-        return;
-    }
-
-    sem_wait( &(channel->sem_lista_clientes) );
-    pthread_t threads_disconnect[channel->num_cliente];
-    int i = 0;
-
-    if(channel->num_cliente != 0){
-        LIST_ELEMENT* no = channel->lista_clientes->listfirst;
-        /*iterando sobre os nos da lista, para pegar os clientes que estao nela*/
-        while(no != NULL){
-
-            CLIENT *client = no->client_ele;
-
-            /*Se eh para desconectar os clientes*/
-            if(flag == 1){
-                /*criando as threads para desconectar o cliente*/
-                pthread_create(&(threads_disconnect[i]), NULL, disconnect_cli, (void*)(client));
-            }
-            /*se eh para colocar os clientes na lista de clientes sem canal*/
-            else if(flag == 0){
-                client->channel = NULL;
-                sem_wait( &(client->sem_muted) );
-                client->muted = 0;
-                sem_post( &(client->sem_muted) );
-
-                /*adicionando o cliente */
-                sem_wait(&(sem_lista_clientes_sem_canal));
-                insert_list(lista_clientes_sem_canal, client);
-                /*incrementando o numero de usuarios conectados*/
-                num_cliente_sem_canal++;
-                sem_post(&(sem_lista_clientes_sem_canal));
-            }
-            
-            i++;
-            no = no->next;
-        }
-    }
-    
-    sem_post( &(channel->sem_lista_clientes) );
-    /*Se eh para desconectar os clientes*/
-    if(flag == 1){
-        /*esperando as threads que desconectam os clientes acabarem*/
-        int j;
-        for(j = 0; j < i;j++){
-            int thread_ret;
-            pthread_join (threads_disconnect[j], (void*)&thread_ret);
-            
-        }
-    }
-
-    delete_channel(channel);
-}
 
 /*Esta funcao desliga o servidor, necessario cancelar que novos clientes se conectem.
 @PARAMETROS
@@ -1330,24 +1557,13 @@ void shutdown_channel(CHANNEL* channel, int flag){
 */
 void shutdown_server(int sock_task){
 
-    sem_wait(&(sem_lista_canais));
-
-    NO* no_it = lista_canais->ini;
-    /*iterando sobre a lista de canais, chamando a funcao shutdown_channel para deletalos*/
-    while(no_it != NULL){
-        /*usando a flag de desconectar os clientes*/
-        shutdown_channel(no_it->channel, 1);
-        no_it = no_it->next;
-    }
-
-
-    sem_post(&(sem_lista_canais));
+    
 
 
     sem_wait(&(sem_lista_clientes_sem_canal));
-    pthread_t threads_disconnect[num_cliente_sem_canal];
+    pthread_t threads_disconnect[num_clientes];
     int i = 0;
-    LIST_ELEMENT* no = lista_clientes_sem_canal->listfirst;
+    LIST_ELEMENT* no = lista_clientes_conectados->listfirst;
     
     /*criando as threads para desconectar todos os clientes*/
     while(no != NULL){
@@ -1367,14 +1583,29 @@ void shutdown_server(int sock_task){
         pthread_join (threads_disconnect[j], (void*)&thread_ret);
         
     }
+    /*deletando o espaco dos canais*/
+    sem_wait(&(sem_lista_canais));
+
+    NO* no_it = lista_canais->ini;
+    /*iterando sobre a lista de canais, chamando a funcao shutdown_channel para deletalos*/
+    while(no_it != NULL){
+        /*usando a flag de desconectar os clientes*/
+        delete_channel(no_it->channel);
+        no_it = no_it->next;
+    }
+
+
+    sem_post(&(sem_lista_canais));
 
     sem_destroy(&(sem_lista_clientes_sem_canal));  
     sem_destroy(&(sem_lista_canais));  
-    sem_destroy(&(sem_num_clientes)); 
-    shutdown(sock_task,1);
+    sem_destroy(&(sem_lista_clientes_conectados)); 
     delete_list(lista_clientes_sem_canal);
+    delete_list(lista_clientes_conectados);
     list_channel_delete(lista_canais);
-    
+
+    close(sock_task);
+
     printf("Servidor Desligado\n");
 
 }
@@ -1387,7 +1618,8 @@ int main(){
     sem_init(&sem_lista_clientes_sem_canal,0,1);
     lista_clientes_sem_canal = creat_list();
 
-    sem_init(&sem_num_clientes,0,1);
+    sem_init(&sem_lista_clientes_conectados,0,1);
+    lista_clientes_conectados = creat_list();
     num_clientes = 0;
 
     shutdown_server_flag = 0;

@@ -1,12 +1,16 @@
 #include "channel.h"
 
-CHANNEL* create_channel(char*name,char*admin_name){
+CHANNEL* create_channel(char*name,char*admin_name,int mode_invite_only){
+
     CHANNEL* channel = (CHANNEL*)malloc(sizeof(CHANNEL));
     sem_init(&(channel->sem_lista_clientes),0,1);
     channel->lista_clientes = creat_list();
     strcpy(channel->admin_name, admin_name);
     channel->num_cliente = 0;
     strcpy(channel->name,name);
+    channel->mode_invite_only = mode_invite_only;
+    sem_init(&(channel->sem_lista_clientes_convidados),0,1);
+    channel->lista_clientes_convidados = creat_list();
 
     channel->num_clientes_ja_conectados = 0;
     return channel;
@@ -19,31 +23,60 @@ void delete_channel(CHANNEL*channel){
 
     delete_list(channel->lista_clientes);
     sem_destroy(&(channel->sem_lista_clientes));
+    delete_list(channel->lista_clientes_convidados);
+    sem_destroy(&(channel->sem_lista_clientes_convidados));
     free(channel);
     channel = NULL;
 }
   
 int channel_insert_client(CHANNEL*channel,CLIENT*cli){
+    int ret = 0;
+
     if(channel == NULL || cli == NULL)
         return -1;
     
     sem_wait( &(channel->sem_lista_clientes) );
     sem_wait( &(cli->sem_nickname) );
     CLIENT *client_in_list = list_get_client_by_name(channel->lista_clientes, cli->nickname);
-
-    if(client_in_list == NULL){
-        insert_list(channel->lista_clientes, cli);
-        channel->num_cliente++;
-        channel->num_clientes_ja_conectados++;
-    }   
-    /*incrementando o numero de usuarios conectados*/
     sem_post( &(cli->sem_nickname) );
     sem_post( &(channel->sem_lista_clientes) );
 
     if(client_in_list == NULL){
-        return 0;
-    }
-    return -2;
+
+        /*se este canal qualquer um pode entrar*/
+        if(channel->mode_invite_only == 0 || strcmp(cli->nickname,channel->admin_name) == 0){
+            sem_wait( &(channel->sem_lista_clientes) );
+            insert_list(channel->lista_clientes, cli);
+            channel->num_cliente++;
+            channel->num_clientes_ja_conectados++;
+            sem_post( &(channel->sem_lista_clientes) );
+        /*se este canal eh apenas para convidados*/
+        }else{
+            sem_wait( &(channel->sem_lista_clientes_convidados) );
+            sem_wait( &(cli->sem_nickname) );
+            CLIENT*convidado = list_get_client_by_name(channel->lista_clientes_convidados, cli->nickname);
+            sem_post( &(cli->sem_nickname) );
+            sem_post( &(channel->sem_lista_clientes_convidados) );
+            /*se o usuario foi convidado ao canal*/
+            if(convidado != NULL){
+                /*inserindo o usuario no canal*/
+                sem_wait( &(channel->sem_lista_clientes) );
+                insert_list(channel->lista_clientes, cli);
+                channel->num_cliente++;
+                channel->num_clientes_ja_conectados++;
+                sem_post( &(channel->sem_lista_clientes) );
+            /*se o usuario nao foi convidado ao canal*/
+            }else{
+                ret = -3;
+            }
+        }
+        
+    }else{
+        ret = -2;
+    }   
+    
+
+    return ret;
 }
 
 CLIENT* channel_remove_client(CHANNEL*channel,char *cli_nickname){

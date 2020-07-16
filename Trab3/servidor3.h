@@ -48,6 +48,20 @@ utiliza a send_message_thread para enviar para cada um
 */
 void send_message(CLIENT*sender, char*message);
 
+/*Esta funcao lida com uma mensagem recebida de um cliente, vendo se eh um comando ou uma mensagem e fazendo seu tratamento adequado
+de acordo
+@PARAMETROS
+    CLIENT* client - o cliente ao qual recebemos uma mensagem
+    char* buffer - a mensagem que o cliente enviou
+@RETORNO
+    int - indica se o bloco que chamou a funcao saber se eh para continuar rodando ou parar por o comando dado
+    ser de o cliente disconectar
+    valores possiveis:
+        0 - indica para continua a execucao
+        1 - indica para fechar a execucao por o cliente disconectar, usado somente na funcao receive_message
+*/
+int comando(CLIENT* client, char*buffer);
+
 /*Esta funcao vai ser chamada pela thread_listen de cada client,
 Esta funcao fica escutando o client para ver se ele enviou alguma mensagem.
 @PARAMETROS
